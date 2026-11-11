@@ -14,7 +14,14 @@ Cloudflare Worker that serves the official Moroccan prayer times (Ministry of Ha
 - `date` defaults to today in UTC. `tomorrow` is absent when the next row does not exist.
 - Errors: `400` bad lat, lon or date; `404` unknown path, or no listed city within 25 km (`{"error":"no city near"}`, the watch then computes the times itself); `405` method other than GET; `502` Habous data unavailable or unreadable. Body: `{"error":"..."}`.
 
-Data comes from `https://www.habous.gov.ma/data/horaires-YYYY-MM.js`, cached 24 hours with the Workers Cache API.
+Data comes from `https://www.habous.gov.ma/data/horaires-YYYY-MM.js`, cached 32 days with the Workers Cache API. Habous publishes a month one time, thus the Worker gets each month file one time.
+To keep the number of calls to Habous low, the Worker also caches the bad answers:
+
+- A `404` from Habous (the month is not published) is kept 1 hour. In that hour the Worker does not call Habous for that month.
+- A failure (other status, network error, or a body that does not parse) is kept 10 minutes. In those 10 minutes the Worker does not call Habous for that month.
+- A second copy of each good month file is kept 62 days. The Worker serves it when Habous fails, thus `502` occurs only when no copy exists.
+
+The cache is local to each Cloudflare location, and Cloudflare can remove an entry early.
 The city is the nearest one in `data/cities.json` (haversine distance), at most 25 km away (`MAX_CITY_DISTANCE_KM`).
 
 ## Limits and abuse protection

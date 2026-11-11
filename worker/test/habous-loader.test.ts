@@ -22,6 +22,9 @@ function fakeFetch(handler: (url: string) => Response | Promise<Response>) {
   return Object.assign(fn, { calls });
 }
 
+const NOVEMBER_URL = "https://www.habous.gov.ma/data/horaires-2026-11.js";
+const DECEMBER_URL = "https://www.habous.gov.ma/data/horaires-2026-12.js";
+
 const november = () => new Response(fixture("horaires-2026-11.js"), { status: 200 });
 
 describe("createHabousLoader", () => {
@@ -43,7 +46,7 @@ describe("createHabousLoader", () => {
     expect(fetcher.calls[0]?.url).toBe("https://www.habous.gov.ma/data/horaires-2026-03.js");
   });
 
-  it("stores the file in the cache for 24 hours and serves the second call from it", async () => {
+  it("stores the file in the cache for 32 days and serves the second call from it", async () => {
     const cache = fakeCache();
     const fetcher = fakeFetch(november);
     const loader = createHabousLoader({ cache, fetcher });
@@ -52,30 +55,81 @@ describe("createHabousLoader", () => {
     expect(second.kind).toBe("found");
     expect(fetcher.calls).toHaveLength(1);
     const stored = cache.store.get("https://www.habous.gov.ma/data/horaires-2026-11.js");
-    expect(stored?.headers.get("cache-control")).toBe("public, max-age=86400");
+    expect(stored?.headers.get("cache-control")).toBe("public, max-age=2764800");
   });
 
-  it("reports a 404 as missing and does not cache it", async () => {
+  it("reports a 404 as missing and does not ask Habous again for 1 hour", async () => {
     const cache = fakeCache();
     const fetcher = fakeFetch(() => new Response("not found", { status: 404 }));
-    const load = await createHabousLoader({ cache, fetcher })(2026, 12);
-    expect(load.kind).toBe("missing");
-    expect(cache.store.size).toBe(0);
+    const loader = createHabousLoader({ cache, fetcher });
+    const first = await loader(2026, 12);
+    const second = await loader(2026, 12);
+    expect(first.kind).toBe("missing");
+    expect(second.kind).toBe("missing");
+    expect(fetcher.calls).toHaveLength(1);
+    const marker = cache.store.get(DECEMBER_URL + "?copy=marker");
+    expect(marker?.headers.get("cache-control")).toBe("public, max-age=3600");
   });
 
-  it("reports other statuses, network errors and unparsable bodies as failed", async () => {
+  it("keeps a fallback copy of a good file for 62 days", async () => {
     const cache = fakeCache();
-    const failing = [
-      () => new Response("boom", { status: 500 }),
+    await createHabousLoader({ cache, fetcher: fakeFetch(november) })(2026, 11);
+    const fallback = cache.store.get(NOVEMBER_URL + "?copy=fallback");
+    expect(fallback?.headers.get("cache-control")).toBe("public, max-age=5356800");
+  });
+
+  it("serves the fallback copy when the month copy is gone and Habous fails, with one call for 10 minutes", async () => {
+    const cache = fakeCache();
+    await createHabousLoader({ cache, fetcher: fakeFetch(november) })(2026, 11);
+    cache.store.delete(NOVEMBER_URL);
+
+    const fetcher = fakeFetch(() => new Response("blocked", { status: 429 }));
+    const loader = createHabousLoader({ cache, fetcher });
+    const first = await loader(2026, 11);
+    const second = await loader(2026, 11);
+
+    expect(first.kind).toBe("found");
+    expect(second.kind).toBe("found");
+    expect(fetcher.calls).toHaveLength(1);
+  });
+
+  it("asks Habous again when the failure marker ended, and refreshes the copies", async () => {
+    const cache = fakeCache();
+    await createHabousLoader({ cache, fetcher: fakeFetch(november) })(2026, 11);
+    cache.store.delete(NOVEMBER_URL);
+    await createHabousLoader({ cache, fetcher: fakeFetch(() => new Response("boom", { status: 500 })) })(2026, 11);
+    cache.store.delete(NOVEMBER_URL + "?copy=marker");
+
+    const fetcher = fakeFetch(november);
+    const load = await createHabousLoader({ cache, fetcher })(2026, 11);
+
+    expect(load.kind).toBe("found");
+    expect(fetcher.calls).toHaveLength(1);
+    expect(cache.store.has(NOVEMBER_URL)).toBe(true);
+  });
+
+  const failures: readonly (readonly [string, () => Response])[] = [
+    ["a 500 status", () => new Response("boom", { status: 500 })],
+    [
+      "a network error",
       () => {
         throw new Error("network down");
       },
-      () => new Response("<html>hello</html>", { status: 200 }),
-    ];
-    for (const handler of failing) {
-      const load = await createHabousLoader({ cache, fetcher: fakeFetch(handler) })(2026, 11);
-      expect(load.kind).toBe("failed");
-    }
-    expect(cache.store.size).toBe(0);
+    ],
+    ["a body that does not parse", () => new Response("<html>hello</html>", { status: 200 })],
+  ];
+
+  it.each(failures)("reports %s as failed and does not ask Habous again for 10 minutes", async (_name, handler) => {
+    const cache = fakeCache();
+    const fetcher = fakeFetch(handler);
+    const loader = createHabousLoader({ cache, fetcher });
+    const first = await loader(2026, 11);
+    const second = await loader(2026, 11);
+    expect(first.kind).toBe("failed");
+    expect(second.kind).toBe("failed");
+    expect(fetcher.calls).toHaveLength(1);
+    const marker = cache.store.get(NOVEMBER_URL + "?copy=marker");
+    expect(marker?.headers.get("cache-control")).toBe("public, max-age=600");
+    expect(cache.store.has(NOVEMBER_URL)).toBe(false);
   });
 });
