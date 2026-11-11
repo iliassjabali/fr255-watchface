@@ -1,3 +1,13 @@
 name = "fr255-prayers"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
+
+# Rate limit: 20 requests per 60 seconds per client IP, per Cloudflare location.
+# namespace_id must be unique in the Cloudflare account; change it if it is already used.
+[[ratelimits]]
+name = "PRAYERS_RATE_LIMITER"
+namespace_id = "25501"
+
+  [ratelimits.simple]
+  limit = 20
+  period = 60

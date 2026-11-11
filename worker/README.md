@@ -17,6 +17,14 @@ Cloudflare Worker that serves the official Moroccan prayer times (Ministry of Ha
 Data comes from `https://www.habous.gov.ma/data/horaires-YYYY-MM.js`, cached 24 hours with the Workers Cache API.
 The city is the nearest one in `data/cities.json` (haversine distance), at most 25 km away (`MAX_CITY_DISTANCE_KM`).
 
+## Limits and abuse protection
+
+- Rate limit: 20 requests per 60 seconds per client, keyed on the `CF-Connecting-IP` header (`unknown` when absent). It applies to every request, before routing, through the Workers Rate Limiting binding `PRAYERS_RATE_LIMITER`. Over the limit: `429`, header `Retry-After: 60`, body `{"error":"too many requests"}`.
+- If the binding is missing or fails (a test, or a run without it), the request is allowed: the limit is then off.
+- Only `lat`, `lon` and `date` are accepted. Another name gives `400 {"error":"unknown parameter"}`, a repeated name gives `400 {"error":"duplicate parameter"}`.
+- `lat` and `lon` must be decimals: optional minus, 1 to 3 digits, then optionally a dot and 1 to 6 digits (no exponent, hex, space or plus sign), within range.
+- A URL longer than 200 characters gives `414 {"error":"uri too long"}`.
+
 ## Develop
 
 ```sh

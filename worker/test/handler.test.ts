@@ -29,7 +29,12 @@ function fakeLoader(months: Readonly<Record<string, MonthLoad>>): FakeLoader {
 }
 
 function deps(loadMonth: MonthLoader): Dependencies {
-  return { cities, loadMonth, now: () => new Date("2026-11-11T08:00:00Z") };
+  return {
+    cities,
+    loadMonth,
+    rateLimiter: { allow: async () => true },
+    now: () => new Date("2026-11-11T08:00:00Z"),
+  };
 }
 
 const octAndNov = () =>

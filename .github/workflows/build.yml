@@ -5,6 +5,9 @@
 # - Each tag that starts with "v": the same, and the zip file is also attached
 #   to a GitHub release, where it stays.
 #
+# - Each push to main that changes the folder worker/: after the Worker tests
+#   pass, the Worker is deployed to Cloudflare.
+#
 # See the section "CI" in README.md.
 name: Build
 
@@ -107,3 +110,54 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npx vitest run
+
+  deploy-worker:
+    name: Deploy Worker
+    needs: worker
+    # Only for main. A manual run (workflow_dispatch) on main always deploys.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-worker
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Find out if a deploy is necessary
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::warning::No deploy: the secret CLOUDFLARE_API_TOKEN is not set."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet HEAD^ HEAD -- .; then
+            echo "No deploy: the folder worker/ did not change."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.plan.outputs.deploy == 'true'
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+
+      - name: Deploy to Cloudflare
+        if: steps.plan.outputs.deploy == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npm ci
+          npx wrangler deploy

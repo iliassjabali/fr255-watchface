@@ -54,7 +54,7 @@ simulator or on the watch.
 ## CI
 
 `.github/workflows/build.yml` runs on GitHub for each push to `main`, each
-pull request, and each tag that starts with `v`. It has two jobs.
+pull request, and each tag that starts with `v`. It has three jobs.
 
 **Watch face**
 
@@ -72,6 +72,20 @@ pull request, and each tag that starts with `v`. It has two jobs.
 **Worker**
 
 It installs the packages, checks the types, and runs the Vitest tests.
+
+**Deploy Worker**
+
+It runs only on `main`, and only after the Worker job passes. It deploys the
+Worker to Cloudflare with `wrangler deploy` when the folder `worker/` changed
+in the push. A manual run of the workflow on `main` always deploys.
+
+It needs two secrets of the repository:
+
+- `CLOUDFLARE_API_TOKEN`: an API token from the Cloudflare dashboard, made
+  with the template "Edit Cloudflare Workers".
+- `CLOUDFLARE_ACCOUNT_ID`: the ID of the Cloudflare account.
+
+With no token, the job makes no deploy and shows a warning on the run.
 
 **Download the zip file**
 

@@ -1,12 +1,13 @@
 import { formatIsoDate, nextDay, parseIsoDate, utcDateOf, type CalendarDate } from "./domain/calendar-date.js";
 import { selectDay, type DayRow, type MonthFile } from "./domain/month.js";
 import { nearestCityWithinLimit, type City } from "./domain/nearest-city.js";
-import type { MonthLoader } from "./domain/ports.js";
+import type { MonthLoader, RateLimiter } from "./domain/ports.js";
 import { toUtcMinutes } from "./domain/time.js";
 
 export type Dependencies = {
   readonly cities: readonly City[];
   readonly loadMonth: MonthLoader;
+  readonly rateLimiter: RateLimiter;
   readonly now: () => Date;
 };
 
@@ -19,14 +20,30 @@ function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
 }
 
+const MAX_URL_LENGTH = 200;
+const ALLOWED_PARAMETERS: readonly string[] = ["lat", "lon", "date"];
+const DECIMAL = /^-?\d{1,3}(\.\d{1,6})?$/;
+
 function parseCoordinate(raw: string | null, name: string, limit: number): number | string {
-  if (raw === null || raw.trim() === "") return `${name} is required`;
+  if (raw === null || raw === "") return `${name} is required`;
+  if (!DECIMAL.test(raw)) return `${name} is invalid`;
   const value = Number(raw);
-  if (!Number.isFinite(value) || Math.abs(value) > limit) return `${name} is invalid`;
-  return value;
+  return Math.abs(value) > limit ? `${name} is invalid` : value;
+}
+
+function checkParameterNames(params: URLSearchParams): string | undefined {
+  const seen = new Set<string>();
+  for (const name of params.keys()) {
+    if (!ALLOWED_PARAMETERS.includes(name)) return "unknown parameter";
+    if (seen.has(name)) return "duplicate parameter";
+    seen.add(name);
+  }
+  return undefined;
 }
 
 function parseQuery(params: URLSearchParams, now: Date): Parsed {
+  const nameError = checkParameterNames(params);
+  if (nameError) return { ok: false, error: nameError };
   const lat = parseCoordinate(params.get("lat"), "lat", 90);
   if (typeof lat === "string") return { ok: false, error: lat };
   const lon = parseCoordinate(params.get("lon"), "lon", 180);
@@ -58,6 +75,15 @@ async function tomorrowRow(
 }
 
 export async function handlePrayers(request: Request, deps: Dependencies): Promise<Response> {
+  const key = request.headers.get("cf-connecting-ip") ?? "unknown";
+  if (!(await deps.rateLimiter.allow(key))) {
+    return new Response(JSON.stringify({ error: "too many requests" }), {
+      status: 429,
+      headers: { ...JSON_HEADERS, "retry-after": "60" },
+    });
+  }
+  if (request.url.length > MAX_URL_LENGTH) return json(414, { error: "uri too long" });
+
   const url = new URL(request.url);
   if (url.pathname !== "/prayers") return json(404, { error: "not found" });
   if (request.method !== "GET") return json(405, { error: "method not allowed" });

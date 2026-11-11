@@ -92,7 +92,9 @@ Do the steps in order. Each step is done when its check passes.
 
 ## Deploy and git
 
-- Deploy the Worker with `npx wrangler deploy` in `worker/`, when the user asks.
+- The CI deploys the Worker after a push to `main` that changes `worker/`,
+  when the Worker tests pass. A deploy from a computer (`npx wrangler deploy`
+  in `worker/`) is only for an urgent correction, when the user asks.
   The public address is in `source/Config.mc`.
 - This is a personal repository. Push with the GitHub account `iliassjabali`:
   `gh auth switch --user iliassjabali`, push, then switch back to the account
