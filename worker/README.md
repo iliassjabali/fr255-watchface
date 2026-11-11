@@ -20,6 +20,7 @@ The city is the nearest one in `data/cities.json` (haversine distance), at most 
 ## Limits and abuse protection
 
 - Rate limit: 20 requests per 60 seconds per client, keyed on the `CF-Connecting-IP` header (`unknown` when absent). It applies to every request, before routing, through the Workers Rate Limiting binding `PRAYERS_RATE_LIMITER`. Over the limit: `429`, header `Retry-After: 60`, body `{"error":"too many requests"}`.
+- The binding is the native Cloudflare rate limiter. The `[[ratelimits]]` block in `wrangler.toml` defines it, and `wrangler deploy` creates it. Cloudflare counts per location and updates the counters with a small delay, so the limit is approximate: a short burst can pass more than 20 requests. In a test on the live Worker, a burst of 80 requests got 16 answers with `429`.
 - If the binding is missing or fails (a test, or a run without it), the request is allowed: the limit is then off.
 - Only `lat`, `lon` and `date` are accepted. Another name gives `400 {"error":"unknown parameter"}`, a repeated name gives `400 {"error":"duplicate parameter"}`.
 - `lat` and `lon` must be decimals: optional minus, 1 to 3 digits, then optionally a dot and 1 to 6 digits (no exponent, hex, space or plus sign), within range.
@@ -33,6 +34,10 @@ npx vitest run test/<file>.test.ts   # run one test file at a time
 npx tsc --noEmit
 npx wrangler dev --port 8787
 ```
+
+## Deploy
+
+The GitHub workflow deploys the Worker after a push to `main` that changes this folder, when the tests pass. See the section "CI" in the README of the repository. For an urgent correction from a computer: `npx wrangler deploy`.
 
 ## City coordinates
 
