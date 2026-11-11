@@ -1,0 +1,1071 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FR255 Layout Variations</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;900&family=Roboto+Condensed:wght@700&display=swap">
+<style>
+  :root {
+    --bg: #0c0f14; --surface: #141922; --fg: #e8edf5; --muted: #93a0b4; --line: #263042; --accent: #55aaff;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.5 Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  .page { max-width: 1120px; margin: 0 auto; padding: 32px 20px 64px; display: flex; flex-direction: column; gap: 32px; }
+  h1, h2, .code, .tag { font-family: "Roboto Condensed", "Arial Narrow", Arial, sans-serif; font-weight: 700; }
+  h1 { font-size: 2.25rem; line-height: 1.1; margin: 0; }
+  p { margin: 0; max-width: 68ch; }
+  .muted { color: var(--muted); }
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0;
+  }
+  .card canvas { width: 100%; max-width: 320px; aspect-ratio: 1; align-self: center; display: block; }
+  .head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .code { color: var(--accent); font-size: 1.75rem; line-height: 1; }
+  h2 { font-size: 1.375rem; line-height: 1.1; margin: 0; }
+  .tag {
+    font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px;
+  }
+  .card p { font-size: 0.9375rem; }
+  .groups, .group { display: flex; flex-direction: column; }
+  .groups { gap: 40px; }
+  .group { gap: 16px; }
+  .group-head { display: flex; flex-direction: column; gap: 4px; }
+  .group-title { font-size: 1.625rem; }
+  footer { border-top: 1px solid var(--line); padding-top: 16px; font-size: 0.875rem; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>FR255 Layout Variations</h1>
+    <p class="muted">Layouts for your Forerunner 255 watch face, with the Sky blue accent and the white energy icon that you selected. The first six add the prayer time to the current watch face. The next nine are variations of M1. The next seven are the Minutes layout with three rings. The next ten are variations of Sun and Rings with more data. Give the code of the layout that you want.</p>
+  </header>
+  <div id="focus" class="groups"></div>
+  <section class="group">
+    <div class="group-head">
+      <h2 class="group-title">All layouts</h2>
+      <p class="muted">The 22 layouts from before, for reference.</p>
+    </div>
+    <div class="grid" id="grid"></div>
+  </section>
+  <footer class="muted">
+    <p>Each dial is drawn on the 260 × 260 pixel screen with colors from the 64-color palette of the display. The fonts are close to the watch fonts, not identical. The values are examples: 10:50, 62 bpm, Body Battery 76, 6482 of 10000 steps, next event at 11:35, stress 28, 1840 kcal, 4.9 km, 145 of 150 intensity minutes, sunrise 07:02, sunset 18:24. The prayer times are examples for Casablanca: Fajr 06:28, Dhuhr 13:15, Asr 16:05, Maghrib 18:28, Isha 19:45.</p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  var C = { bg: '#000000', fg: '#FFFFFF', dim: '#AAAAAA', track: '#555555', accent: '#00AAFF', heart: '#FF0055', energy: '#FFFFFF', sun: '#FFFF55' };
+  var D = { hour: '10', minute: '50', date: 'TUE 10 NOV', temp: '18°', hr: '62', energy: 76, steps: 6482, goal: 10000, battery: 87, event: '11:35', countdown: 'in 45 min' };
+  var CAP = 0.711, XT = 16, TINY = 23, cx = 130, cy = 130;
+
+  function kit(ctx) {
+    var k = {};
+    k.font = function (size, family) {
+      ctx.font = (family === 'time' ? '900 ' : '700 ') + size + 'px ' +
+        (family === 'time' ? 'Roboto, "Arial Black", sans-serif' : '"Roboto Condensed", "Arial Narrow", Arial, sans-serif');
+    };
+    k.text = function (str, x, y, size, color, align, family) {
+      k.font(size, family);
+      ctx.fillStyle = color; ctx.textAlign = align || 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.fillText(str, x, y + (size * CAP) / 2);
+    };
+    k.width = function (str, size, family) { k.font(size, family); return ctx.measureText(str).width; };
+    k.line = function (x1, y1, x2, y2, color, w) {
+      ctx.strokeStyle = color; ctx.lineWidth = w || 1; ctx.lineCap = 'butt';
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    };
+    k.poly = function (pts, color) {
+      ctx.fillStyle = color; ctx.beginPath();
+      pts.forEach(function (p, i) { if (i) { ctx.lineTo(p[0], p[1]); } else { ctx.moveTo(p[0], p[1]); } });
+      ctx.closePath(); ctx.fill();
+    };
+    k.disc = function (x, y, r, color) { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); };
+    k.rect = function (x, y, w, h, color) { ctx.fillStyle = color; ctx.fillRect(x, y, w, h); };
+    k.box = function (x, y, w, h, color) { ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1); };
+    // An arc. The angles are in degrees, clockwise from the top of the screen.
+    k.arc = function (r, from, to, color, w) {
+      ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(cx, cy, r, (from - 90) * Math.PI / 180, (to - 90) * Math.PI / 180); ctx.stroke();
+    };
+
+    // Icons. x and y are the center, but the battery and the calendar use the left edge.
+    k.heart = function (x, y) {
+      k.disc(x - 4, y - 3, 5, C.heart); k.disc(x + 4, y - 3, 5, C.heart);
+      k.poly([[x - 9, y - 1], [x + 9, y - 1], [x, y + 9]], C.heart);
+    };
+    k.bolt = function (x, y) {
+      k.poly([[x + 3, y - 10], [x - 7, y + 1], [x - 1, y + 1], [x - 3, y + 10], [x + 7, y - 2], [x + 1, y - 2]], C.energy);
+    };
+    k.feet = function (x, y) {
+      ctx.fillStyle = C.accent;
+      ctx.beginPath(); ctx.ellipse(x - 5, y + 2, 3, 6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(x + 5, y - 2, 3, 6, 0, 0, Math.PI * 2); ctx.fill();
+    };
+    k.phone = function (x, y) {
+      ctx.strokeStyle = C.accent; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect(x - 5, y - 9, 11, 18, 2); ctx.stroke();
+      k.rect(x - 1, y + 4, 3, 2, C.accent);
+    };
+    k.battery = function (x, y) {
+      k.box(x, y - 6, 24, 13, C.dim); k.rect(x + 24, y - 2, 3, 5, C.dim);
+      k.rect(x + 2, y - 4, Math.round((20 * D.battery) / 100), 9, C.fg);
+    };
+    k.calendar = function (x, y) {
+      k.box(x, y - 6, 16, 14, C.dim); k.rect(x, y - 6, 16, 4, C.dim);
+      k.rect(x + 3, y - 9, 2, 4, C.dim); k.rect(x + 11, y - 9, 2, 4, C.dim);
+      k.rect(x + 4, y + 1, 3, 3, C.dim); k.rect(x + 9, y + 1, 3, 3, C.dim);
+    };
+    k.sun = function (x, y) {
+      k.disc(x, y, 4, C.sun);
+      [[-8, 0, 9, 0], [0, -8, 0, 9], [-6, -6, 7, 7], [-6, 6, 7, -7]].forEach(function (r) {
+        k.line(x + r[0], y + r[1], x + r[2], y + r[3], C.sun, 1);
+      });
+    };
+
+    // Blocks
+    k.ticks = function () {
+      var lit = Math.min(60, Math.floor((60 * D.steps) / D.goal));
+      for (var i = 0; i < 60; i++) {
+        var a = (i * Math.PI) / 30, s = Math.sin(a), c = Math.cos(a), outer = 129, inner = (i % 5 === 0) ? 120 : 124;
+        k.line(cx + inner * s, cy - inner * c, cx + outer * s, cy - outer * c, i < lit ? C.accent : C.track, 2);
+      }
+    };
+    k.status = function (y) {
+      var bt = D.battery + '%', tw = k.width(bt, XT), x = cx - (27 + 5 + tw + 12 + 11) / 2;
+      k.battery(x, y); k.text(bt, x + 32, y, XT, C.dim); k.phone(x + 32 + tw + 12 + 5, y);
+    };
+    k.dateWeather = function (y) {
+      var dw = k.width(D.date, XT), tw = k.width(D.temp, XT), x = cx - (dw + 12 + 18 + 5 + tw) / 2;
+      k.text(D.date, x, y, XT, C.dim); k.sun(x + dw + 12 + 9, y); k.text(D.temp, x + dw + 12 + 18 + 5, y, XT, C.fg);
+    };
+    k.timeLine = function (y, size) {
+      var gap = size * 0.13, r = size * 0.055;
+      k.text(D.hour, cx - gap, y, size, C.fg, 'right', 'time');
+      k.disc(cx, y - size * 0.16, r, C.dim); k.disc(cx, y + size * 0.16, r, C.dim);
+      k.text(D.minute, cx + gap, y, size, C.accent, 'left', 'time');
+    };
+    k.stack = function (x, iconY, valueY, icon, value, size) {
+      icon(x, iconY); k.text(String(value), x, valueY, size, C.fg, 'center');
+    };
+    k.eventBlock = function (y) {
+      var w = k.width(D.event, XT), x = cx - (16 + 7 + w) / 2;
+      k.calendar(x, y); k.text(D.event, x + 23, y, XT, C.fg);
+      k.text(D.countdown, cx, y + 20, XT, C.dim, 'center');
+    };
+    k.eventLine = function (y) {
+      var rest = '  ' + D.countdown, w1 = k.width(D.event, XT), w2 = k.width(rest, XT), x = cx - (16 + 7 + w1 + w2) / 2;
+      k.calendar(x, y); k.text(D.event, x + 23, y, XT, C.fg); k.text(rest, x + 23 + w1, y, XT, C.dim);
+    };
+    k.arcAt = function (x, y, r, from, to, color, w) {
+      ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineCap = 'butt';
+      ctx.beginPath(); ctx.arc(x, y, r, (from - 90) * Math.PI / 180, (to - 90) * Math.PI / 180); ctx.stroke();
+    };
+    // A clock hand. The angle is in degrees, clockwise from the top.
+    k.hand = function (deg, len, w, color) {
+      var a = deg * Math.PI / 180;
+      ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(cx - 12 * Math.sin(a), cy + 12 * Math.cos(a));
+      ctx.lineTo(cx + len * Math.sin(a), cy - len * Math.cos(a)); ctx.stroke();
+    };
+    k.roundFill = function (x, y, w, h, r, color) {
+      ctx.fillStyle = color; ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill();
+    };
+    // The time on one line, with a color for the hours, the colon and the minutes.
+    k.timeLine2 = function (y, size, hourColor, colonColor, minuteColor) {
+      var gap = size * 0.13, r = size * 0.055;
+      k.text(D.hour, cx - gap, y, size, hourColor, 'right', 'time');
+      k.disc(cx, y - size * 0.16, r, colonColor); k.disc(cx, y + size * 0.16, r, colonColor);
+      k.text(D.minute, cx + gap, y, size, minuteColor, 'left', 'time');
+    };
+    // Heart rate, energy and steps on one line, each with its icon.
+    k.itemsRow = function (y) {
+      var items = [[k.heart, D.hr], [k.bolt, String(D.energy)], [k.feet, String(D.steps)]], gap = 16, total = 0;
+      items.forEach(function (it) { total += 24 + k.width(it[1], XT); });
+      total += gap * (items.length - 1);
+      var x = cx - total / 2;
+      items.forEach(function (it) {
+        it[0](x + 10, y); k.text(it[1], x + 24, y, XT, C.fg);
+        x += 24 + k.width(it[1], XT) + gap;
+      });
+    };
+    return k;
+  }
+
+  var STEP_PART = Math.min(1, D.steps / D.goal);
+
+  var LAYOUTS = [
+    {
+      code: 'L1', name: 'Split', tag: 'Current build',
+      note: 'The time is stacked on the left. The three values are in a column on the right. Ticks on the edge show the step goal.',
+      draw: function (k) {
+        k.ticks(); k.status(cy - 106); k.dateWeather(cy - 82);
+        k.text(D.hour, cx - 5, cy - 33, 80, C.fg, 'right', 'time');
+        k.text(D.minute, cx - 5, cy + 33, 80, C.accent, 'right', 'time');
+        k.line(cx + 5.5, cy - 56, cx + 5.5, cy + 57, C.track, 1);
+        k.heart(cx + 24, cy - 38); k.bolt(cx + 24, cy); k.feet(cx + 24, cy + 38);
+        k.text(D.hr, cx + 42, cy - 38, TINY, C.fg); k.text(String(D.energy), cx + 42, cy, TINY, C.fg); k.text(String(D.steps), cx + 42, cy + 38, TINY, C.fg);
+        k.eventBlock(cy + 79);
+      }
+    },
+    {
+      code: 'L2', name: 'Classic',
+      note: 'The time is on one line in the center. The three values are in a row below it. This is the most usual layout, and the easiest to read at a glance.',
+      draw: function (k) {
+        k.ticks(); k.status(24); k.dateWeather(50);
+        k.timeLine(100, 68);
+        k.stack(62, 148, 171, k.heart, D.hr, TINY);
+        k.stack(130, 148, 171, k.bolt, D.energy, TINY);
+        k.stack(198, 148, 171, k.feet, D.steps, TINY);
+        k.eventBlock(205);
+      }
+    },
+    {
+      code: 'L3', name: 'Tower',
+      note: 'The largest time: the hours and the minutes are stacked in the center. The values are small, in two columns at the sides. The event is on one line at the bottom.',
+      draw: function (k) {
+        k.ticks(); k.status(24);
+        k.text(D.date, cx, 47, XT, C.dim, 'center');
+        k.text(D.hour, cx, 97, 88, C.fg, 'center', 'time');
+        k.text(D.minute, cx, 167, 88, C.accent, 'center', 'time');
+        k.stack(46, 100, 121, k.heart, D.hr, XT);
+        k.stack(46, 148, 169, k.bolt, D.energy, XT);
+        k.stack(214, 100, 121, k.feet, D.steps, XT);
+        k.stack(214, 148, 169, k.sun, D.temp, XT);
+        k.eventLine(218);
+      }
+    },
+    {
+      code: 'L4', name: 'Gauges',
+      note: 'Two arcs replace the ticks. The left arc is the Body Battery and the right arc is the step goal. The time is on one line.',
+      draw: function (k) {
+        k.arc(122, 235, 305, C.track, 7); k.arc(122, 235, 235 + 70 * D.energy / 100, C.energy, 7);
+        var p = Math.min(1, D.steps / D.goal);
+        k.arc(122, 55, 125, C.track, 7); k.arc(122, 125 - 70 * p, 125, C.accent, 7);
+        k.status(26); k.dateWeather(52);
+        k.timeLine(102, 66);
+        k.stack(70, 148, 171, k.bolt, D.energy, TINY);
+        k.stack(130, 148, 171, k.heart, D.hr, TINY);
+        k.stack(190, 148, 171, k.feet, D.steps, TINY);
+        k.eventBlock(205);
+      }
+    },
+    {
+      code: 'L5', name: 'Grid',
+      note: 'A table with labels and no icons for the values. The time is smaller, on top. The four cells are heart rate, energy, steps and the next event.',
+      draw: function (k) {
+        k.ticks();
+        k.text(D.date, cx, 27, XT, C.dim, 'center');
+        k.timeLine(68, 56);
+        k.line(38, 103.5, 222, 103.5, C.track, 1); k.line(cx + 0.5, 110, cx + 0.5, 200, C.track, 1); k.line(46, 153.5, 214, 153.5, C.track, 1);
+        function cell(x, y, label, value, color) {
+          k.text(label, x, y, 12, C.dim, 'center'); k.text(String(value), x, y + 21, TINY, color || C.fg, 'center');
+        }
+        cell(84, 118, 'HEART', D.hr); cell(176, 118, 'ENERGY', D.energy);
+        cell(84, 167, 'STEPS', D.steps, C.accent); cell(176, 167, 'NEXT', D.event);
+        var tw = k.width(D.temp, XT), x = cx - (27 + 8 + 11 + 14 + 18 + 4 + tw) / 2;
+        k.battery(x, 222); k.phone(x + 27 + 8 + 5, 222); k.sun(x + 27 + 8 + 11 + 14 + 9, 222);
+        k.text(D.temp, x + 27 + 8 + 11 + 14 + 18 + 4, 222, XT, C.fg);
+      }
+    },
+    {
+      code: 'L6', name: 'Minimal',
+      note: 'No ticks and much empty space. The time is wide in the center. A thin bar shows the step goal, and all values are on one small line.',
+      draw: function (k) {
+        k.status(32); k.dateWeather(70);
+        k.timeLine(116, 76);
+        k.rect(60, 157, 140, 3, C.track); k.rect(60, 157, Math.round(140 * Math.min(1, D.steps / D.goal)), 3, C.accent);
+        var items = [[k.heart, D.hr], [k.bolt, String(D.energy)], [k.feet, String(D.steps)]], gap = 16, total = 0;
+        items.forEach(function (it) { total += 20 + 4 + k.width(it[1], XT); });
+        total += gap * (items.length - 1);
+        var x = cx - total / 2;
+        items.forEach(function (it) {
+          it[0](x + 10, 184); k.text(it[1], x + 24, 184, XT, C.fg);
+          x += 24 + k.width(it[1], XT) + gap;
+        });
+        k.eventLine(213);
+      }
+    },
+    {
+      code: 'L7', name: 'Chrono',
+      note: 'Three small gauges, as on a chronograph. Each gauge is a ring that fills up, with the value in the center: heart rate, Body Battery and steps.',
+      draw: function (k) {
+        k.dateWeather(40); k.timeLine(80, 54);
+        function dial(x, y, part, color, icon, value) {
+          k.arcAt(x, y, 27, 225, 495, C.track, 4); k.arcAt(x, y, 27, 225, 225 + 270 * part, color, 4);
+          k.text(String(value), x, y - 3, 17, C.fg, 'center'); icon(x, y + 24);
+        }
+        dial(62, 140, D.hr / 180, C.heart, k.heart, D.hr);
+        dial(130, 160, D.energy / 100, C.energy, k.bolt, D.energy);
+        dial(198, 140, STEP_PART, C.accent, k.feet, D.steps);
+        k.eventLine(216);
+      }
+    },
+    {
+      code: 'L8', name: 'Analog',
+      note: 'Clock hands, with no digits for the time. The blue hand is the minutes. The values are at the right, the weather is at the left, and the event is at the bottom.',
+      draw: function (k) {
+        for (var i = 0; i < 12; i++) {
+          var a = i * Math.PI / 6, s = Math.sin(a), c = Math.cos(a), major = i % 3 === 0;
+          k.line(cx + 114 * s, cy - 114 * c, cx + 126 * s, cy - 126 * c, major ? C.fg : C.dim, major ? 3 : 2);
+        }
+        k.text(D.date, cx, 44, XT, C.dim, 'center');
+        k.sun(58, 130); k.text(D.temp, 72, 130, XT, C.fg);
+        k.heart(178, 106); k.text(D.hr, 196, 106, XT, C.fg);
+        k.bolt(178, 130); k.text(String(D.energy), 196, 130, XT, C.fg);
+        k.feet(178, 154); k.text(String(D.steps), 196, 154, XT, C.fg);
+        k.eventBlock(196);
+        k.hand(325, 62, 7, C.fg); k.hand(300, 98, 5, C.accent);
+        k.disc(cx, cy, 6, C.accent); k.disc(cx, cy, 2, C.bg);
+      }
+    },
+    {
+      code: 'L9', name: 'Timeline',
+      note: 'A ruler of the day, from 06:00 to 22:00. The white marker is the time now, and the blue block is the next event. You see how near the meeting is.',
+      draw: function (k) {
+        k.status(26); k.dateWeather(50); k.timeLine(96, 66);
+        var x0 = 34, x1 = 226, y = 142, perHour = (x1 - x0) / 16;
+        k.line(x0, y + 0.5, x1, y + 0.5, C.track, 1);
+        for (var h = 6; h <= 22; h++) {
+          var x = Math.round(x0 + (h - 6) * perHour), label = h % 4 === 2;
+          k.line(x + 0.5, y - (label ? 6 : 3), x + 0.5, y, C.dim, 1);
+          if (label) { k.text((h < 10 ? '0' : '') + h, x, y + 12, 11, C.dim, 'center'); }
+        }
+        var now = x0 + (10 + 50 / 60 - 6) * perHour, ev = x0 + (11 + 35 / 60 - 6) * perHour;
+        k.rect(x0, y - 1, now - x0, 2, C.fg);
+        k.rect(ev, y - 9, 6, 8, C.accent);
+        k.poly([[now - 5, y - 17], [now + 5, y - 17], [now, y - 9]], C.fg);
+        k.line(now, y - 9, now, y + 3, C.fg, 1);
+        k.itemsRow(186); k.eventLine(212);
+      }
+    },
+    {
+      code: 'L10', name: 'Meters',
+      note: 'Three horizontal bars, as on an audio mixer. Each bar shows how full the value is, with the number at the right.',
+      draw: function (k) {
+        k.text(D.date, cx, 30, XT, C.dim, 'center'); k.timeLine(72, 58);
+        function meter(y, icon, part, color, value) {
+          icon(52, y); k.rect(72, y - 3, 104, 6, C.track); k.rect(72, y - 3, Math.round(104 * part), 6, color);
+          k.text(String(value), 216, y, 19, C.fg, 'right');
+        }
+        meter(118, k.heart, D.hr / 180, C.heart, D.hr);
+        meter(146, k.bolt, D.energy / 100, C.energy, D.energy);
+        meter(174, k.feet, STEP_PART, C.accent, D.steps);
+        k.eventLine(205);
+        k.battery(cx - 23, 230); k.phone(cx - 23 + 27 + 8 + 5, 230);
+      }
+    },
+    {
+      code: 'L11', name: 'Minutes',
+      note: 'The minutes fill the screen in blue. The hour is small on top, next to the date. This is the boldest layout, and the minutes are readable from far away.',
+      draw: function (k) {
+        k.text(D.hour, 122, 52, 44, C.fg, 'right', 'time');
+        k.text(D.date, 132, 43, XT, C.dim); k.sun(141, 63); k.text(D.temp, 155, 63, XT, C.fg);
+        k.text(D.minute, cx, 138, 150, C.accent, 'center', 'time');
+        k.itemsRow(210);
+        var rest = ' 45 min', w1 = k.width(D.event, XT), w2 = k.width(rest, XT), x = cx - (23 + w1 + w2) / 2;
+        k.calendar(x, 233); k.text(D.event, x + 23, 233, XT, C.fg); k.text(rest, x + 23 + w1, 233, XT, C.dim);
+      }
+    },
+    {
+      code: 'L12', name: 'Rings',
+      note: 'Three rings around the time, as on an activity tracker: steps in blue, Body Battery in white and heart rate in red. The numbers below the time have the same colors.',
+      draw: function (k) {
+        function ring(r, part, color) { k.arcAt(cx, cy, r, 0, 360, C.track, 8); k.arcAt(cx, cy, r, 0, 360 * part, color, 8); }
+        ring(122, STEP_PART, C.accent); ring(111, D.energy / 100, C.energy); ring(100, D.hr / 180, C.heart);
+        k.text(D.date, cx, 72, XT, C.dim, 'center'); k.timeLine(110, 48);
+        var vals = [[D.hr, C.heart], [String(D.energy), C.energy], [String(D.steps), C.accent]], gap = 14, total = 0;
+        vals.forEach(function (it) { total += k.width(it[0], 19); });
+        total += gap * 2;
+        var x = cx - total / 2;
+        vals.forEach(function (it) { k.text(it[0], x, 148, 19, it[1]); x += k.width(it[0], 19) + gap; });
+        k.eventBlock(174);
+      }
+    },
+    {
+      code: 'L13', name: 'Console',
+      note: 'A text list, aligned to the left, as in a terminal. Labels in grey, values in white, a blue cursor, and a vertical bar for the step goal.',
+      draw: function (k) {
+        var x = 60;
+        k.text(D.date + '  ' + D.temp, x + 2, 46, XT, C.dim);
+        var w = k.width(D.hour, 60, 'time'), wc = k.width(':', 60, 'time');
+        k.text(D.hour, x, 86, 60, C.fg, 'left', 'time');
+        k.text(':', x + w + 2, 82, 60, C.dim, 'left', 'time');
+        k.text(D.minute, x + w + wc + 4, 86, 60, C.accent, 'left', 'time');
+        [['HR', D.hr], ['BODY', String(D.energy)], ['STEPS', String(D.steps)], ['NEXT', D.event]].forEach(function (row, i) {
+          var y = 130 + i * 22;
+          k.text(row[0], x + 2, y, 13, C.dim); k.text(row[1], x + 58, y, 19, C.fg);
+          if (row[0] === 'NEXT') { k.text(' +45m', x + 58 + k.width(row[1], 19), y, XT, C.dim); }
+        });
+        k.rect(x + 2, 209, 9, 15, C.accent);
+        var hgt = Math.round(76 * STEP_PART);
+        k.rect(214, 124, 4, 76, C.track); k.rect(214, 124 + 76 - hgt, 4, hgt, C.accent);
+      }
+    },
+    {
+      code: 'L14', name: 'Block',
+      note: 'A color block. The top of the screen is blue with the hour in black, and the bottom is black with the minutes in white. The values are in the band between them.',
+      draw: function (k) {
+        k.rect(0, 0, 260, 112, C.accent);
+        k.text(D.date, cx, 26, XT, C.bg, 'center');
+        k.text(D.hour, cx, 72, 84, C.bg, 'center', 'time');
+        k.itemsRow(132);
+        k.text(D.minute, cx, 186, 84, C.fg, 'center', 'time');
+        var w = k.width(D.event, XT), x = cx - (23 + w) / 2;
+        k.calendar(x, 234); k.text(D.event, x + 23, 234, XT, C.fg);
+      }
+    },
+    {
+      code: 'L15', name: 'Sun',
+      note: 'An arc for the daylight, from sunrise to sunset. The yellow dot is the sun now. The time is below the arc, and the values are below the horizon line.',
+      draw: function (k) {
+        var ay = 128, r = 96, rise = 7 + 2 / 60, set = 18 + 24 / 60;
+        var part = (10 + 50 / 60 - rise) / (set - rise), deg = 270 + 180 * part, a = deg * Math.PI / 180;
+        k.arcAt(cx, ay, r, 270, 450, C.track, 2); k.arcAt(cx, ay, r, 270, deg, C.sun, 2);
+        k.disc(cx + r * Math.sin(a), ay - r * Math.cos(a), 6, C.sun);
+        k.line(26, ay + 0.5, 234, ay + 0.5, C.track, 1);
+        k.text('07:02', 36, ay + 13, 12, C.dim); k.text('18:24', 224, ay + 13, 12, C.dim, 'right');
+        k.text(D.date, cx, 64, XT, C.dim, 'center'); k.timeLine(98, 54);
+        k.itemsRow(166); k.eventLine(194);
+        k.battery(cx - 23, 224); k.phone(cx - 23 + 27 + 8 + 5, 224);
+      }
+    },
+    {
+      code: 'L16', name: 'Pulse',
+      note: 'A graph of your heart rate for the last hours, in red, with the value now at its right end. The other values are below the graph.',
+      draw: function (k) {
+        k.status(26); k.timeLine(70, 58); k.dateWeather(108);
+        var hr = [58, 61, 64, 60, 72, 88, 96, 84, 70, 66, 63, 61, 65, 62, 60, 62], x0 = 34, x1 = 186, top = 124, bottom = 172;
+        var pts = hr.map(function (v, i) { return [x0 + (x1 - x0) * i / (hr.length - 1), bottom - (bottom - top) * (v - 55) / 45]; });
+        k.poly([[x0, bottom]].concat(pts).concat([[x1, bottom]]), '#550000');
+        for (var i = 1; i < pts.length; i++) { k.line(pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1], C.heart, 2); }
+        k.disc(pts[pts.length - 1][0], pts[pts.length - 1][1], 3, C.heart);
+        k.heart(208, 138); k.text(D.hr, 208, 160, TINY, C.fg, 'center');
+        var e = String(D.energy), st = String(D.steps), total = 24 + k.width(e, XT) + 18 + 24 + k.width(st, XT), x = cx - total / 2;
+        k.bolt(x + 10, 192); k.text(e, x + 24, 192, XT, C.fg);
+        x += 24 + k.width(e, XT) + 18;
+        k.feet(x + 10, 192); k.text(st, x + 24, 192, XT, C.fg);
+        k.eventLine(216);
+      }
+    },
+    {
+      code: 'L17', name: 'Agenda',
+      note: 'The next event is the main element, not the time. The event time is large and blue, and a bar fills up in the last hour before the event.',
+      draw: function (k) {
+        k.text(D.date, cx, 28, XT, C.dim, 'center');
+        k.timeLine2(60, 44, C.fg, C.dim, C.fg);
+        k.line(50, 88.5, 210, 88.5, C.track, 1);
+        k.text('NEXT EVENT', cx, 102, 12, C.dim, 'center');
+        k.text(D.event, cx, 136, 58, C.accent, 'center', 'time');
+        k.rect(50, 166, 160, 5, C.track); k.rect(50, 166, Math.round(160 * (1 - 45 / 60)), 5, C.accent);
+        k.text(D.countdown, cx, 186, XT, C.fg, 'center');
+        k.itemsRow(212);
+      }
+    },
+    {
+      code: 'L18', name: 'Quad',
+      note: 'Four quarters around a center circle. The time and the date are in the circle, and its border shows the step goal. Each quarter has one value.',
+      draw: function (k) {
+        k.line(8, 130.5, 68, 130.5, C.track, 1); k.line(192, 130.5, 252, 130.5, C.track, 1);
+        k.line(130.5, 8, 130.5, 68, C.track, 1); k.line(130.5, 192, 130.5, 252, C.track, 1);
+        k.arcAt(cx, cy, 60, 0, 360, C.track, 3); k.arcAt(cx, cy, 60, 0, 360 * STEP_PART, C.accent, 3);
+        k.timeLine(122, 38); k.text(D.date, cx, 150, 12, C.dim, 'center');
+        k.stack(64, 56, 78, k.heart, D.hr, TINY); k.stack(196, 56, 78, k.bolt, D.energy, TINY);
+        k.stack(64, 182, 204, k.feet, D.steps, TINY);
+        k.calendar(188, 182); k.text(D.event, 196, 204, TINY, C.fg, 'center');
+      }
+    },
+    {
+      code: 'L19', name: 'Flip',
+      note: 'The time on four tiles, as on a flip clock. The hour tiles are grey and the minute tiles are blue.',
+      draw: function (k) {
+        k.dateWeather(38);
+        [[30, '1', 0], [78, '0', 0], [138, '5', 1], [186, '0', 1]].forEach(function (t) {
+          k.roundFill(t[0], 62, 44, 62, 5, t[2] ? C.accent : C.track);
+          k.text(t[1], t[0] + 22, 93, 54, t[2] ? C.bg : C.fg, 'center', 'time');
+          k.rect(t[0], 92, 44, 2, C.bg);
+        });
+        k.stack(62, 150, 173, k.heart, D.hr, TINY);
+        k.stack(130, 150, 173, k.bolt, D.energy, TINY);
+        k.stack(198, 150, 173, k.feet, D.steps, TINY);
+        k.eventBlock(205);
+      }
+    },
+    {
+      code: 'L20', name: 'Orbit',
+      note: 'Two dots move around the screen as planets. The blue dot on the outer circle is the minutes, and the white dot on the inner circle is the hour.',
+      draw: function (k) {
+        k.arcAt(cx, cy, 121, 0, 360, C.track, 1); k.arcAt(cx, cy, 101, 0, 360, C.track, 1);
+        [0, 90, 180, 270].forEach(function (d) { var a = d * Math.PI / 180; k.disc(cx + 121 * Math.sin(a), cy - 121 * Math.cos(a), 2, C.dim); });
+        var m = 300 * Math.PI / 180, h = 325 * Math.PI / 180;
+        k.disc(cx + 121 * Math.sin(m), cy - 121 * Math.cos(m), 7, C.accent);
+        k.disc(cx + 101 * Math.sin(h), cy - 101 * Math.cos(h), 7, C.fg);
+        k.text(D.date, cx, 66, XT, C.dim, 'center'); k.timeLine(102, 50);
+        k.itemsRow(144); k.eventBlock(170);
+      }
+    },
+    {
+      code: 'L21', name: 'Band',
+      note: 'A blue band across the screen, with the time in black on it. The status and the date are above the band, and the values are below it.',
+      draw: function (k) {
+        k.status(30); k.dateWeather(66);
+        k.rect(0, 90, 260, 60, C.accent);
+        k.timeLine2(120, 60, C.bg, C.bg, C.bg);
+        k.itemsRow(174); k.eventBlock(200);
+      }
+    },
+    {
+      code: 'L22', name: 'Words',
+      note: 'The time in words. The hour is white and the minutes are blue. The text uses the largest letter font of the watch, which is smaller than the number fonts.',
+      draw: function (k) {
+        k.dateWeather(52);
+        k.text('TEN', cx, 96, 38, C.fg, 'center'); k.text('FIFTY', cx, 134, 38, C.accent, 'center');
+        k.itemsRow(176); k.eventLine(204);
+        k.battery(cx - 23, 230); k.phone(cx - 23 + 27 + 8 + 5, 230);
+      }
+    }
+  ];
+
+  // More data for the Sun and Rings variations.
+  var X = { stress: 28, kcal: 1840, kcalGoal: 2400, km: '4.9', min: 145, minGoal: 150, hi: '21°', lo: '13°',
+            rise: '07:02', set: '18:24', riseH: 7 + 2 / 60, setH: 18 + 24 / 60, nowH: 10 + 50 / 60, eventH: 11 + 35 / 60 };
+  var COL = { stress: '#FFFF55', kcal: '#55FFFF', min: '#55FF00', night: '#000055', day: '#55AAFF' };
+  var HR_PART = D.hr / 180, BODY_PART = D.energy / 100;
+
+  function more(k) {
+    k.pairWidth = function (label, value) { return k.width(label, XT) + 5 + k.width(String(value), XT); };
+    k.pairAt = function (x, y, label, value, color) {
+      k.text(label, x, y, XT, C.dim); k.text(String(value), x + k.width(label, XT) + 5, y, XT, color || C.fg);
+    };
+    k.pairCenter = function (x, y, label, value, color) { k.pairAt(x - k.pairWidth(label, value) / 2, y, label, value, color); };
+    k.pairsRow = function (y, pairs) {
+      var gap = 12, total = gap * (pairs.length - 1);
+      pairs.forEach(function (p) { total += k.pairWidth(p[0], p[1]); });
+      var x = cx - total / 2;
+      pairs.forEach(function (p) { k.pairAt(x, y, p[0], p[1], p[2]); x += k.pairWidth(p[0], p[1]) + gap; });
+    };
+    k.legend = function (y, vals, size) {
+      var gap = 14, total = gap * (vals.length - 1);
+      vals.forEach(function (v) { total += k.width(String(v[0]), size); });
+      var x = cx - total / 2;
+      vals.forEach(function (v) { k.text(String(v[0]), x, y, size, v[1]); x += k.width(String(v[0]), size) + gap; });
+    };
+    k.eventShort = function (y) {
+      var rest = ' 45m', w1 = k.width(D.event, XT), w2 = k.width(rest, XT), x = cx - (23 + w1 + w2) / 2;
+      k.calendar(x, y); k.text(D.event, x + 23, y, XT, C.fg); k.text(rest, x + 23 + w1, y, XT, C.dim);
+    };
+    k.cloud = function (x, y) {
+      k.disc(x - 4, y + 1, 4, C.dim); k.disc(x + 1, y - 2, 5, C.dim); k.disc(x + 6, y + 2, 3, C.dim); k.rect(x - 4, y + 1, 10, 5, C.dim);
+    };
+    k.ring = function (r, part, color, w) {
+      k.arcAt(cx, cy, r, 0, 360, C.track, w);
+      if (part > 0) { k.arcAt(cx, cy, r, 0, 360 * Math.min(1, part), color, w); }
+    };
+    // The daylight arc with the sun on it, and the horizon line.
+    k.sunArc = function (ay, r) {
+      var part = (X.nowH - X.riseH) / (X.setH - X.riseH), deg = 270 + 180 * part, a = deg * Math.PI / 180;
+      k.arcAt(cx, ay, r, 270, 450, C.track, 2); k.arcAt(cx, ay, r, 270, deg, C.sun, 2);
+      k.disc(cx + r * Math.sin(a), ay - r * Math.cos(a), 6, C.sun);
+      k.line(cx - r - 8, ay + 0.5, cx + r + 8, ay + 0.5, C.track, 1);
+    };
+    // A ring for the 24 hours of the day. Midnight is at the bottom and noon is at the top.
+    k.dayRing = function (r, w, dot) {
+      function deg(h) { return h / 24 * 360 + 180; }
+      k.arcAt(cx, cy, r, 0, 360, COL.night, w); k.arcAt(cx, cy, r, deg(X.riseH), deg(X.setH), COL.day, w);
+      var e = deg(X.eventH) * Math.PI / 180;
+      k.line(cx + (r - w) * Math.sin(e), cy - (r - w) * Math.cos(e), cx + (r + w) * Math.sin(e), cy - (r + w) * Math.cos(e), C.fg, 2);
+      var a = deg(X.nowH) * Math.PI / 180;
+      k.disc(cx + r * Math.sin(a), cy - r * Math.cos(a), dot + 2, C.bg); k.disc(cx + r * Math.sin(a), cy - r * Math.cos(a), dot, C.sun);
+    };
+    return k;
+  }
+
+  var BODY_PAIRS = [['STRESS', X.stress], ['KCAL', X.kcal], ['KM', X.km]];
+  var CORE_COLORS = function () { return [[D.hr, C.heart], [D.energy, C.energy], [D.steps, C.accent]]; };
+
+  var ORANGE = '#FFAA00';
+  // The Minutes layout with three thin rings: heart rate in red, Body Battery in blue, stress in orange.
+  // The two rows below the minutes are free for other data.
+  function minutesBase(k, top) {
+    more(k);
+    k.ring(125, HR_PART, C.heart, 6); k.ring(117, BODY_PART, C.accent, 6); k.ring(109, X.stress / 100, ORANGE, 6);
+    var hw = k.width(D.hour, 36, 'time'), dw = k.width(D.date, XT), x = cx - (hw + 8 + dw) / 2;
+    k.text(D.hour, x + hw, 62, 36, C.fg, 'right', 'time');
+    k.text(D.date, x + hw + 8, 55, XT, C.dim);
+    if (top === 'battery') { k.battery(x + hw + 8, 73); k.phone(x + hw + 8 + 27 + 8 + 5, 73); }
+    else { k.sun(x + hw + 8 + 9, 73); k.text(D.temp, x + hw + 8 + 23, 73, XT, C.fg); }
+    k.text(D.minute, cx, 130, 112, C.accent, 'center', 'time');
+  }
+  var ROW_A = 188, ROW_B = 210;
+
+  var MINUTES = {
+    title: 'Minutes with rings',
+    note: 'Layout L11 with three rings on the edge: heart rate in red, Body Battery in blue and stress in orange. The steps and the three numbers are gone. Each version puts different data in the two free rows below the minutes.',
+    items: [
+      {
+        code: 'M1', name: 'Next event',
+        note: 'The free rows show the next event with its countdown, then the watch battery and the phone.',
+        draw: function (k) {
+          minutesBase(k); k.eventLine(ROW_A);
+          k.battery(cx - 23, ROW_B); k.phone(cx - 23 + 27 + 8 + 5, ROW_B);
+        }
+      },
+      {
+        code: 'M2', name: 'Weather',
+        note: 'The temperature now with the high and the low of the day, then the sunrise and the sunset.',
+        draw: function (k) {
+          minutesBase(k, 'battery');
+          var rest = '  ' + X.hi + ' / ' + X.lo, w1 = k.width(D.temp, XT), w2 = k.width(rest, XT), x = cx - (23 + w1 + w2) / 2;
+          k.sun(x + 9, ROW_A); k.text(D.temp, x + 23, ROW_A, XT, C.fg); k.text(rest, x + 23 + w1, ROW_A, XT, C.dim);
+          k.text(X.rise + ' – ' + X.set, cx, ROW_B, XT, C.dim, 'center');
+        }
+      },
+      {
+        code: 'M3', name: 'Runner',
+        note: 'Training data: the distance that you ran this week, the recovery time that remains, and your VO2 max.',
+        draw: function (k) {
+          minutesBase(k);
+          k.pairsRow(ROW_A, [['WEEK', '23.4 km'], ['REC', '18 h']]);
+          k.pairsRow(ROW_B, [['VO2', '52']]);
+        }
+      },
+      {
+        code: 'M4', name: 'Day',
+        note: 'The calories and the distance of the day, then the number of notifications on your phone.',
+        draw: function (k) {
+          minutesBase(k);
+          k.pairsRow(ROW_A, [['KCAL', X.kcal], ['KM', X.km]]);
+          k.pairsRow(ROW_B, [['NOTIF', '3']]);
+        }
+      },
+      {
+        code: 'M5', name: 'Ring numbers',
+        note: 'The exact numbers of the three rings, small and in the ring colors, then the next event. Use this if the rings alone are not precise enough for you.',
+        draw: function (k) {
+          minutesBase(k);
+          k.legend(ROW_A, [[D.hr, C.heart], [D.energy, C.accent], [X.stress, ORANGE]], 19);
+          k.eventShort(ROW_B);
+        }
+      },
+      {
+        code: 'M6', name: 'Forecast',
+        note: 'The weather for the next hours: the sky and the temperature at 12:00, 14:00 and 16:00.',
+        draw: function (k) {
+          minutesBase(k, 'battery');
+          [[1, '19°'], [1, '21°'], [0, '20°']].forEach(function (f, i) {
+            var x = 92 + i * 38;
+            if (f[0]) { k.sun(x, ROW_A - 2); } else { k.cloud(x - 1, ROW_A - 2); }
+            k.text(f[1], x, ROW_B - 1, XT, C.fg, 'center');
+          });
+        }
+      },
+      {
+        code: 'M7', name: 'Status',
+        note: 'The watch battery with its percentage and the phone connection, then the next event.',
+        draw: function (k) {
+          minutesBase(k); k.status(ROW_A); k.eventShort(ROW_B);
+        }
+      }
+    ]
+  };
+
+  // M1 with options for the rings, the colors and the position of the hour.
+  function m1(k, o) {
+    more(k); o = o || {};
+    var vals = [[HR_PART, C.heart], [BODY_PART, C.accent], [X.stress / 100, ORANGE]];
+    var rings = o.rings || 'thin', topY = 62, size = 112, my = 130;
+    if (rings === 'thin') { vals.forEach(function (v, i) { k.ring(125 - 8 * i, v[0], v[1], 6); }); }
+    if (rings === 'thick') { vals.forEach(function (v, i) { k.ring(124 - 11 * i, v[0], v[1], 9); }); topY = 72; size = 96; my = 132; }
+    if (rings === 'open') {
+      vals.forEach(function (v, i) { k.arcAt(cx, cy, 125 - 8 * i, 225, 495, C.track, 6); k.arcAt(cx, cy, 125 - 8 * i, 225, 225 + 270 * v[0], v[1], 6); });
+      size = 120; my = 134;
+    }
+    if (rings === 'ticks') {
+      vals.forEach(function (v, i) {
+        var outer = 128 - 10 * i, lit = Math.round(48 * v[0]);
+        for (var t = 0; t < 48; t++) {
+          var a = t * Math.PI / 24, sn = Math.sin(a), cs = Math.cos(a);
+          k.line(cx + (outer - 7) * sn, cy - (outer - 7) * cs, cx + outer * sn, cy - outer * cs, t < lit ? v[1] : C.track, 2.5);
+        }
+      });
+      topY = 67; size = 104; my = 130;
+    }
+    if (rings === 'tri') {
+      [[185, 0], [305, 1], [65, 2]].forEach(function (sg) {
+        k.arcAt(cx, cy, 123, sg[0], sg[0] + 110, C.track, 9); k.arcAt(cx, cy, 123, sg[0], sg[0] + 110 * vals[sg[1]][0], vals[sg[1]][1], 9);
+      });
+      topY = 58; size = 132; my = 136;
+    }
+    if (o.topY) { topY = o.topY; }
+    if (o.top === 'center') {
+      k.text(D.hour, cx, topY, 40, o.hourColor || C.fg, 'center', 'time');
+    } else {
+      var hs = o.hourSize || 36, hw = k.width(D.hour, hs, 'time'), dw = k.width(D.date, XT), x = cx - (hw + 8 + dw) / 2;
+      k.text(D.hour, x + hw, topY, hs, o.hourColor || C.fg, 'right', 'time');
+      k.text(D.date, x + hw + 8, topY - 7, XT, C.dim);
+      if (o.second) { o.second(k, x + hw + 8, topY + 11); }
+      else { k.sun(x + hw + 8 + 9, topY + 11); k.text(D.temp, x + hw + 8 + 23, topY + 11, XT, C.fg); }
+    }
+    k.text(D.minute, cx, my, size, o.minuteColor || C.accent, 'center', 'time');
+  }
+  function batteryPhone(k, y) { k.battery(cx - 23, y); k.phone(cx - 23 + 27 + 8 + 5, y); }
+  function eventTime(k, y, size) {
+    var w = k.width(D.event, size), x = cx - (23 + w) / 2;
+    k.calendar(x, y); k.text(D.event, x + 23, y, size, C.fg);
+  }
+
+  var M1_VARIATIONS = {
+    title: 'M1 variations',
+    note: 'Nine versions of M1. All of them have the large minutes, the three rings for heart rate, Body Battery and stress, and the next event below the minutes.',
+    items: [
+      { code: 'M1a', name: 'Thin rings', tag: 'M1 as before',
+        note: 'The M1 that you selected: three thin rings, the event on one line, then the battery and the phone.',
+        draw: function (k) { m1(k); k.eventLine(188); batteryPhone(k, 210); } },
+      { code: 'M1b', name: 'Thick rings',
+        note: 'The rings are wider and easier to read. The minutes are smaller, because the rings take more space.',
+        draw: function (k) { m1(k, { rings: 'thick' }); k.eventLine(184); batteryPhone(k, 205); } },
+      { code: 'M1c', name: 'Open rings',
+        note: 'The rings are open at the bottom. The event, its countdown and the battery are in the opening, thus the minutes can be larger.',
+        draw: function (k) { m1(k, { rings: 'open' }); eventTime(k, 194, XT); k.text(D.countdown, cx, 214, XT, C.dim, 'center'); batteryPhone(k, 237); } },
+      { code: 'M1d', name: 'Tick rings',
+        note: 'The rings are made of small ticks. The look is lighter and more technical.',
+        draw: function (k) { m1(k, { rings: 'ticks' }); k.eventLine(185); batteryPhone(k, 206); } },
+      { code: 'M1e', name: 'One ring, three parts',
+        note: 'One wide ring in three parts: Body Battery on top, stress at the right and heart rate at the left. This gives the largest minutes.',
+        draw: function (k) { m1(k, { rings: 'tri' }); k.eventLine(200); batteryPhone(k, 222); } },
+      { code: 'M1f', name: 'White minutes',
+        note: 'The minutes are white and the hour is blue. The blue is then only on the Body Battery ring and the hour.',
+        draw: function (k) { m1(k, { minuteColor: C.fg, hourColor: C.accent }); k.eventLine(188); batteryPhone(k, 210); } },
+      { code: 'M1g', name: 'Countdown bar',
+        note: 'A bar below the event fills up in the last hour before the event starts.',
+        draw: function (k) {
+          m1(k); k.eventLine(186);
+          k.rect(70, 200, 120, 4, C.track); k.rect(70, 200, Math.round(120 * (1 - 45 / 60)), 4, C.accent);
+          batteryPhone(k, 217);
+        } },
+      { code: 'M1h', name: 'Event first',
+        note: 'The event time is larger and the countdown is in blue on its own line. The battery and the phone are not shown.',
+        draw: function (k) { m1(k); eventTime(k, 188, TINY); k.text(D.countdown, cx, 211, XT, C.accent, 'center'); } },
+      { code: 'M1i', name: 'Centered',
+        note: 'The hour is alone and centered on top. The date goes below the event. The weather is not shown.',
+        draw: function (k) { m1(k, { top: 'center' }); k.eventLine(188); k.text(D.date, cx, 210, XT, C.dim, 'center'); } }
+    ]
+  };
+
+  // The current watch face: open rings, hour at 42 px, event on one line.
+  function build(k, o) {
+    o = o || {}; o.rings = 'open'; o.hourSize = 42; o.topY = 67;
+    m1(k, o); k.eventLine(o.eventY || 196);
+  }
+  // Example prayer times for Casablanca. At 10:50 the next prayer is Dhuhr.
+  var PRAYER = { name: 'DHUHR', time: '13:15', wait: '2 h 25', done: 1 };
+  // Items on one line, centered as one group. Each item has a width and a draw function.
+  function line(k, y, items, gap) {
+    var total = gap * (items.length - 1);
+    items.forEach(function (it) { total += it.w; });
+    var x = cx - total / 2;
+    items.forEach(function (it) { it.draw(x, y); x += it.w + gap; });
+  }
+  function parts(k) {
+    return {
+      battery: { w: 27, draw: function (x, y) { k.battery(x, y); } },
+      phone: { w: 11, draw: function (x, y) { k.phone(x + 5, y); } },
+      weather: { w: 23 + k.width(D.temp, XT), draw: function (x, y) { k.sun(x + 9, y); k.text(D.temp, x + 23, y, XT, C.fg); } },
+      pair: function (label, value, color) {
+        return { w: k.pairWidth(label, value), draw: function (x, y) { k.pairAt(x, y, label, value, color); } };
+      },
+      crescent: { w: 14 + 5 + k.width(PRAYER.time, XT), draw: function (x, y) {
+        k.disc(x + 7, y, 7, C.fg); k.disc(x + 10, y - 2, 6, C.bg); k.text(PRAYER.time, x + 19, y, XT, C.fg);
+      } }
+    };
+  }
+
+  var PRAYERS = {
+    title: 'Prayer time',
+    note: 'The current watch face, with the next prayer added. The times on this page are examples. At 10:50 the next prayer is Dhuhr at 13:15.',
+    items: [
+      { code: 'P1', name: 'Name and time',
+        note: 'The battery, the phone, then the name and the time of the next prayer, all on one line.',
+        draw: function (k) { build(k); var p = parts(k); line(k, 222, [p.battery, p.phone, p.pair(PRAYER.name, PRAYER.time)], 10); } },
+      { code: 'P2', name: 'Crescent',
+        note: 'A crescent icon replaces the name. The line is shorter, and the phone icon moves to the top, after the weather.',
+        draw: function (k) {
+          build(k, { second: function (k2, x, y) {
+            k2.sun(x + 9, y); k2.text(D.temp, x + 23, y, XT, C.fg); k2.phone(x + 23 + k2.width(D.temp, XT) + 14, y);
+          } });
+          var p = parts(k); line(k, 222, [p.battery, p.crescent], 14);
+        } },
+      { code: 'P3', name: 'Countdown',
+        note: 'The time that remains to the next prayer, not the time of the prayer.',
+        draw: function (k) { build(k); var p = parts(k); line(k, 222, [p.battery, p.phone, p.pair(PRAYER.name, PRAYER.wait)], 10); } },
+      { code: 'P4', name: 'Own line',
+        note: 'The prayer has its own line between the event and the battery, with the time and the countdown. The opening then has three lines.',
+        draw: function (k) {
+          build(k, { eventY: 190 });
+          var rest = '  ' + PRAYER.wait.replace(/ /g, ''), w = k.pairWidth(PRAYER.name, PRAYER.time), x = cx - (w + k.width(rest, XT)) / 2;
+          k.pairAt(x, 211, PRAYER.name, PRAYER.time); k.text(rest, x + w, 211, XT, C.dim);
+          batteryPhone(k, 234);
+        } },
+      { code: 'P5', name: 'Five dots',
+        note: 'The name and the time, plus five dots for the five prayers of the day. Grey dots are done, the blue dot is the next prayer, and the rings are the prayers that remain.',
+        draw: function (k) {
+          build(k); var p = parts(k); line(k, 220, [p.battery, p.phone, p.pair(PRAYER.name, PRAYER.time)], 10);
+          for (var i = 0; i < 5; i++) {
+            var x = cx - 24 + i * 12;
+            if (i < PRAYER.done) { k.disc(x, 240, 2.5, C.dim); }
+            else if (i === PRAYER.done) { k.disc(x, 240, 3.5, C.accent); }
+            else { k.disc(x, 240, 2.5, C.track); k.disc(x, 240, 1.2, C.bg); }
+          }
+        } },
+      { code: 'P6', name: 'Prayer on top',
+        note: 'The prayer takes the place of the weather on top, below the date. The weather moves next to the battery.',
+        draw: function (k) {
+          build(k, { second: function (k2, x, y) { k2.pairAt(x, y, PRAYER.name, PRAYER.time); } });
+          var p = parts(k); line(k, 222, [p.battery, p.phone, p.weather], 10);
+        } }
+    ]
+  };
+
+  var FOCUS = [
+    PRAYERS,
+    M1_VARIATIONS,
+    MINUTES,
+    {
+      title: 'Sun', note: 'Four versions of the daylight arc, each with more data.',
+      items: [
+        {
+          code: 'S1', name: 'Sun Day',
+          note: 'The Sun layout with a second row of values: stress, calories and distance. The sunrise, the sunset and the high and low temperatures are on the horizon line.',
+          draw: function (k) {
+            more(k); k.sunArc(120, 92);
+            k.text(D.date, cx, 58, XT, C.dim, 'center'); k.timeLine(90, 50);
+            k.text(X.rise, 34, 134, XT, C.dim); k.text(X.set, 226, 134, XT, C.dim, 'right');
+            k.text(X.hi + ' / ' + X.lo, cx, 134, XT, C.fg, 'center');
+            k.itemsRow(157); k.pairsRow(181, BODY_PAIRS); k.eventLine(205);
+            k.battery(cx - 23, 231); k.phone(cx - 23 + 27 + 8 + 5, 231);
+          }
+        },
+        {
+          code: 'S2', name: 'Sun 24',
+          note: 'The edge is a clock of 24 hours. Light blue is the daylight and dark blue is the night. The yellow dot is the time now and the white mark is the next event.',
+          draw: function (k) {
+            more(k); k.dayRing(122, 6, 7);
+            k.text(D.date, cx, 50, XT, C.dim, 'center'); k.timeLine(88, 60);
+            k.itemsRow(128); k.pairsRow(152, BODY_PAIRS);
+            k.pairsRow(174, [['RISE', X.rise], ['SET', X.set]]);
+            k.eventBlock(196);
+          }
+        },
+        {
+          code: 'S3', name: 'Sun Forecast',
+          note: 'The daylight arc on top, and the weather for the next hours below the horizon: the hour, the sky and the temperature.',
+          draw: function (k) {
+            more(k); k.sunArc(112, 88);
+            k.text(D.date, cx, 52, XT, C.dim, 'center'); k.timeLine(84, 46);
+            [['12h', 1, '19°'], ['14h', 1, '21°'], ['16h', 0, '20°'], ['18h', 0, '17°'], ['20h', 0, '15°']].forEach(function (f, i) {
+              var x = 50 + i * 40;
+              k.text(f[0], x, 127, XT, C.dim, 'center');
+              if (f[1]) { k.sun(x, 146); } else { k.cloud(x - 1, 146); }
+              k.text(f[2], x, 165, XT, C.fg, 'center');
+            });
+            k.itemsRow(190); k.eventLine(214);
+          }
+        },
+        {
+          code: 'S4', name: 'Sun Curve',
+          note: 'The path of the sun for the full day, as a wave. Above the line is the day and below it is the night. The blue mark on the line is the next event.',
+          draw: function (k) {
+            more(k);
+            k.text(D.date, cx, 28, XT, C.dim, 'center'); k.timeLine(64, 54);
+            var x0 = 30, hy = 124, night = 24 - X.setH + X.riseH;
+            function at(t) {
+              var x = x0 + 200 * t / 24, y;
+              if (t >= X.riseH && t <= X.setH) { y = hy - 28 * Math.sin(Math.PI * (t - X.riseH) / (X.setH - X.riseH)); }
+              else { y = hy + 14 * Math.sin(Math.PI * (t < X.riseH ? t + 24 - X.setH : t - X.setH) / night); }
+              return [x, y];
+            }
+            k.line(22, hy + 0.5, 238, hy + 0.5, C.track, 1);
+            for (var t = 0; t < 24; t += 0.25) {
+              var a = at(t), b = at(t + 0.25), day = t >= X.riseH && t + 0.25 <= X.setH;
+              k.line(a[0], a[1], b[0], b[1], day ? C.sun : C.track, 2);
+            }
+            k.rect(x0 + 200 * X.eventH / 24 - 1, hy - 6, 3, 12, C.accent);
+            var n = at(X.nowH); k.disc(n[0], n[1], 8, C.bg); k.disc(n[0], n[1], 6, C.sun);
+            k.text(X.rise, x0 + 200 * X.riseH / 24 + 5, 138, XT, C.dim);
+            k.text(X.set, x0 + 200 * X.setH / 24 - 5, 138, XT, C.dim, 'right');
+            k.itemsRow(165); k.pairsRow(189, BODY_PAIRS); k.eventLine(213);
+          }
+        }
+      ]
+    },
+    {
+      title: 'Rings', note: 'Four versions of the rings, from three values to six values.',
+      items: [
+        {
+          code: 'R1', name: 'Four Rings',
+          note: 'A fourth ring, in green, for the intensity minutes of the week. Each value has a label and the color of its ring.',
+          draw: function (k) {
+            more(k);
+            k.ring(123, STEP_PART, C.accent, 7); k.ring(113, BODY_PART, C.energy, 7); k.ring(103, HR_PART, C.heart, 7); k.ring(93, X.min / X.minGoal, COL.min, 7);
+            k.text(D.date, cx, 68, XT, C.dim, 'center'); k.timeLine(102, 44);
+            k.pairsRow(138, [['HR', D.hr, C.heart], ['BODY', D.energy, C.energy]]);
+            k.pairsRow(160, [['STEPS', D.steps, C.accent], ['MIN', X.min, COL.min]]);
+            k.eventShort(184);
+          }
+        },
+        {
+          code: 'R2', name: 'Open Rings',
+          note: 'The rings are open at the bottom, as on a speedometer. The event is in the opening. The center has space for stress, calories and the weather.',
+          draw: function (k) {
+            more(k);
+            [[122, STEP_PART, C.accent], [110, BODY_PART, C.energy], [98, HR_PART, C.heart]].forEach(function (g) {
+              k.arcAt(cx, cy, g[0], 225, 495, C.track, 8); k.arcAt(cx, cy, g[0], 225, 225 + 270 * g[1], g[2], 8);
+            });
+            k.text(D.date, cx, 60, XT, C.dim, 'center'); k.timeLine(96, 52);
+            k.legend(134, CORE_COLORS(), 19);
+            k.pairsRow(158, [['STRESS', X.stress], ['KCAL', X.kcal]]);
+            var rest = '  ' + X.hi + ' / ' + X.lo, w1 = k.width(D.temp, XT), w2 = k.width(rest, XT), x = cx - (23 + w1 + w2) / 2;
+            k.sun(x + 9, 181); k.text(D.temp, x + 23, 181, XT, C.fg); k.text(rest, x + 23 + w1, 181, XT, C.dim);
+            k.eventBlock(212);
+          }
+        },
+        {
+          code: 'R3', name: 'Tick Rings',
+          note: 'The three rings are made of small ticks, as the edge of your current watch face. The look is lighter and more technical.',
+          draw: function (k) {
+            more(k);
+            [[128, STEP_PART, C.accent], [116, BODY_PART, C.energy], [104, HR_PART, C.heart]].forEach(function (g) {
+              var lit = Math.round(48 * g[1]);
+              for (var i = 0; i < 48; i++) {
+                var a = i * Math.PI / 24, sn = Math.sin(a), cs = Math.cos(a);
+                k.line(cx + (g[0] - 8) * sn, cy - (g[0] - 8) * cs, cx + g[0] * sn, cy - g[0] * cs, i < lit ? g[2] : C.track, 2.5);
+              }
+            });
+            k.text(D.date, cx, 62, XT, C.dim, 'center'); k.timeLine(98, 52);
+            k.legend(134, CORE_COLORS(), 19);
+            k.pairsRow(158, [['STRESS', X.stress], ['KCAL', X.kcal]]);
+            k.eventShort(182);
+          }
+        },
+        {
+          code: 'R4', name: 'Split Rings',
+          note: 'Six values. The left half is your body: heart rate, Body Battery and stress. The right half is your activity: steps, calories and intensity minutes.',
+          draw: function (k) {
+            more(k);
+            [[122, HR_PART, C.heart, STEP_PART, C.accent], [111, BODY_PART, C.energy, X.kcal / X.kcalGoal, COL.kcal], [100, X.stress / 100, COL.stress, X.min / X.minGoal, COL.min]].forEach(function (g) {
+              k.arcAt(cx, cy, g[0], 190, 350, C.track, 7); k.arcAt(cx, cy, g[0], 190, 190 + 160 * Math.min(1, g[1]), g[2], 7);
+              k.arcAt(cx, cy, g[0], 10, 170, C.track, 7); k.arcAt(cx, cy, g[0], 170 - 160 * Math.min(1, g[3]), 170, g[4], 7);
+            });
+            k.text(D.date, cx, 62, XT, C.dim, 'center'); k.timeLine(94, 44);
+            k.pairCenter(90, 132, 'HR', D.hr, C.heart); k.pairCenter(170, 132, 'STEPS', D.steps, C.accent);
+            k.pairCenter(90, 152, 'BODY', D.energy, C.energy); k.pairCenter(170, 152, 'KCAL', X.kcal, COL.kcal);
+            k.pairCenter(90, 172, 'STRESS', X.stress, COL.stress); k.pairCenter(170, 172, 'MIN', X.min, COL.min);
+            k.eventShort(198);
+          }
+        }
+      ]
+    },
+    {
+      title: 'Sun and Rings together', note: 'Two layouts that mix the two ideas.',
+      items: [
+        {
+          code: 'H1', name: 'Horizon Rings',
+          note: 'The top edge is the daylight arc with the sun. The bottom edge has three gauges: heart rate, Body Battery and steps. The center has two rows of values.',
+          draw: function (k) {
+            more(k);
+            var part = (X.nowH - X.riseH) / (X.setH - X.riseH), deg = 270 + 180 * part, a = deg * Math.PI / 180;
+            k.arcAt(cx, cy, 122, 272, 448, C.track, 3); k.arcAt(cx, cy, 122, 272, deg, C.sun, 3);
+            k.disc(cx + 122 * Math.sin(a), cy - 122 * Math.cos(a), 6, C.sun);
+            [[100, 150, STEP_PART, C.accent, k.feet], [155, 205, BODY_PART, C.energy, k.bolt], [210, 260, HR_PART, C.heart, k.heart]].forEach(function (g) {
+              k.arcAt(cx, cy, 122, g[0], g[1], C.track, 7); k.arcAt(cx, cy, 122, g[0], g[0] + (g[1] - g[0]) * g[2], g[3], 7);
+              var m = (g[0] + g[1]) / 2 * Math.PI / 180; g[4](cx + 103 * Math.sin(m), cy - 103 * Math.cos(m));
+            });
+            k.text(D.date, cx, 56, XT, C.dim, 'center'); k.timeLine(94, 60);
+            k.pairsRow(134, [['HR', D.hr, C.heart], ['BODY', D.energy], ['STEPS', D.steps, C.accent]]);
+            k.pairsRow(158, BODY_PAIRS);
+            k.eventBlock(182);
+          }
+        },
+        {
+          code: 'H2', name: 'Sun Rings',
+          note: 'A thin clock of 24 hours on the edge, with the sun and the next event. The three rings for steps, Body Battery and heart rate are inside it.',
+          draw: function (k) {
+            more(k); k.dayRing(125, 3, 5);
+            k.ring(114, STEP_PART, C.accent, 7); k.ring(104, BODY_PART, C.energy, 7); k.ring(94, HR_PART, C.heart, 7);
+            k.text(D.date, cx, 66, XT, C.dim, 'center'); k.timeLine(100, 46);
+            k.legend(134, CORE_COLORS(), 19);
+            k.pairsRow(156, [['RISE', X.rise], ['SET', X.set]]);
+            k.eventShort(180);
+          }
+        }
+      ]
+    }
+  ];
+
+  function draw(canvas, layout) {
+    var px = 900, ctx = canvas.getContext('2d');
+    canvas.width = px; canvas.height = px;
+    var s = px / 300;
+    ctx.setTransform(s, 0, 0, s, 0, 0);
+    ctx.clearRect(0, 0, 300, 300);
+    ctx.fillStyle = '#23272e'; ctx.beginPath(); ctx.arc(150, 150, 149, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#444b56'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(150, 150, 148, 0, Math.PI * 2); ctx.stroke();
+    ctx.save();
+    ctx.translate(20, 20);
+    ctx.beginPath(); ctx.arc(130, 130, 130, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, 260, 260);
+    layout.draw(kit(ctx));
+    ctx.restore();
+  }
+
+  var cards = [];
+  function render(list, grid) {
+  list.forEach(function (layout) {
+    var card = document.createElement('article'); card.className = 'card';
+    var canvas = document.createElement('canvas');
+    canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', 'Layout ' + layout.code + ', ' + layout.name);
+    var head = document.createElement('div'); head.className = 'head';
+    var code = document.createElement('span'); code.className = 'code'; code.textContent = layout.code;
+    var h2 = document.createElement('h2'); h2.textContent = layout.name;
+    head.appendChild(code); head.appendChild(h2);
+    if (layout.tag) { var tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = layout.tag; head.appendChild(tag); }
+    var note = document.createElement('p'); note.className = 'muted'; note.textContent = layout.note;
+    card.appendChild(canvas); card.appendChild(head); card.appendChild(note);
+    grid.appendChild(card);
+    cards.push({ canvas: canvas, layout: layout });
+  });
+  }
+  var focusEl = document.getElementById('focus');
+  FOCUS.forEach(function (group) {
+    var section = document.createElement('section'); section.className = 'group';
+    var head = document.createElement('div'); head.className = 'group-head';
+    var title = document.createElement('h2'); title.className = 'group-title'; title.textContent = group.title;
+    var note = document.createElement('p'); note.className = 'muted'; note.textContent = group.note;
+    head.appendChild(title); head.appendChild(note);
+    var grid = document.createElement('div'); grid.className = 'grid';
+    section.appendChild(head); section.appendChild(grid); focusEl.appendChild(section);
+    render(group.items, grid);
+  });
+  render(LAYOUTS, document.getElementById('grid'));
+
+  function drawAll() { cards.forEach(function (c) { draw(c.canvas, c.layout); }); }
+  drawAll();
+  if (document.fonts && document.fonts.load) {
+    Promise.all([
+      document.fonts.load('900 80px Roboto', '0123456789'),
+      document.fonts.load('700 16px "Roboto Condensed"', 'TUE 10 NOV')
+    ]).then(drawAll, function () {});
+  }
+})();
+</script>
+</body>
+</html>
