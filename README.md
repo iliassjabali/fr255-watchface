@@ -4,7 +4,7 @@ A Connect IQ watch face for the Garmin Forerunner 255 (`fr255`), with a small
 Cloudflare Worker that gives it the official prayer times for Morocco.
 
 <p align="center">
-  <img src="docs/watch-face.png" width="300" alt="The watch face: large blue minutes, three open rings, the hour, the day, the next prayer in Arabic, the next calendar event, the battery days, the phone, the alarm bell and the weather">
+  <img src="docs/watch-face.png" width="300" alt="The watch face: large blue minutes, three open rings, the hour, the day, the next prayer in Arabic, the next calendar event, a dot for the phone connection, the weather with the high and the low, and the next sunrise or sunset">
 </p>
 
 The image is a drawing from `design/layouts.html`, with example values. The
@@ -17,9 +17,11 @@ the image again.
 - **Rings**, from the edge to the center: heart rate (red), Body Battery
   (blue), stress (orange). The rings are open at the bottom.
 - **Top:** the hour, the day, and the next prayer with its Arabic name.
-- **In the opening of the rings:** the next calendar event with a countdown,
-  then the days of watch battery that remain, the phone connection, a bell
-  when an alarm is set, and the weather.
+- **In the opening of the rings:** the next calendar event with a countdown.
+  Below it, a dot for the phone connection (blue when connected, a gray ring
+  when not) and the weather with the high and the low of the day. On a second
+  line, the next sunrise or sunset from the official timetable (the Chourouk
+  and the Maghrib).
 
 ## Repository
 
@@ -86,12 +88,13 @@ The tests cover the logic that has no access to the device:
 - `source/EventTime.mc`: the minutes to the next calendar event and the
   countdown text.
 - `source/Rings.mc`: the filled part of each ring, in degrees.
-- `source/StatusRow.mc`: the battery level, the text of the days that remain
-  and the alarm of the status row.
+- `source/StatusRow.mc`: the width of a line of the status row and the
+  temperature in the unit of the watch.
 - `source/TopRow.mc`: the position of the hour and of the text lines at its
   right.
 - `source/PrayerCalc.mc`: the prayer times from the position of the sun.
-- `source/PrayerSchedule.mc`: the next prayer and its text.
+- `source/PrayerSchedule.mc`: the next prayer and its text, and the next
+  sunrise or sunset.
 - `source/PrayerStore.mc`: the official times that the web service sent.
 
 The drawing code in `source/View.mc` has no unit tests. Check it in the

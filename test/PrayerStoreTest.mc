@@ -70,6 +70,24 @@ function storeGivesNoFajrOfTomorrowWhenTheRowIsAbsentOrOld(logger as Logger) as 
 }
 
 (:test)
+function storeGivesTheTimesOfTomorrow(logger as Logger) as Boolean {
+    var times = PrayerStore.tomorrow(storedDay(), "2026-11-11") as Array<Number>;
+    Test.assertEqual(times[1], 416);
+    Test.assertEqual(times[4], 1054);
+    return true;
+}
+
+(:test)
+function storeGivesNoTimesOfTomorrowWhenTheRowIsAbsentOrOld(logger as Logger) as Boolean {
+    var data = storedDay();
+    data.remove("tomorrow");
+    Test.assert(PrayerStore.tomorrow(data, "2026-11-11") == null);
+    Test.assert(PrayerStore.tomorrow(storedDay(), "2026-11-12") == null);
+    Test.assert(PrayerStore.tomorrow(null, "2026-11-11") == null);
+    return true;
+}
+
+(:test)
 function storeIsFreshOnlyForTheDataOfToday(logger as Logger) as Boolean {
     Test.assert(PrayerStore.isFresh(storedDay(), "2026-11-11"));
     Test.assert(!PrayerStore.isFresh(storedDay(), "2026-11-12"));

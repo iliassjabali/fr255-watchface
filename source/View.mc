@@ -14,8 +14,9 @@ import Toybox.Weather;
 // - Rings, from the edge to the center: heart rate, Body Battery, stress.
 // - Top: the hour, with the date and the next prayer at its right. The prayer
 //   name is in Arabic.
-// - Opening at the bottom: the next calendar event, then the battery with the
-//   days that remain, the phone, a bell when an alarm is set, and the weather.
+// - Opening at the bottom: the next calendar event, then a dot for the phone
+//   connection and the weather with the high and the low, then the next
+//   sunrise or sunset.
 class FaceView extends WatchUi.WatchFace {
 
     // Palette, from the 64 colors of the Forerunner 255 display.
@@ -25,6 +26,7 @@ class FaceView extends WatchUi.WatchFace {
     private const COLOR_HEART = 0xFF0055;
     private const COLOR_STRESS = 0xFFAA00;
     private const COLOR_SUN = 0xFFFF55;
+    private const COLOR_LOW = 0x55AAFF;
 
     private const RING_WIDTH = 6;
     private const DEFAULT_MAX_HEART_RATE = 190;
@@ -145,7 +147,7 @@ class FaceView extends WatchUi.WatchFace {
         }
 
         drawNextEvent(dc, cx, cy + 66, clock.hour * 60 + clock.min);
-        drawStatusRow(dc, cx, cy + 92);
+        drawStatusRow(dc, cx, cy + 91, cy + 111, clock);
     }
 
     // An open ring: a grey track, and the filled part in the color of the value.
@@ -272,90 +274,125 @@ class FaceView extends WatchUi.WatchFace {
         }
     }
 
-    // The watch battery, the phone connection, the alarm and the weather,
-    // centered as one group in the opening of the rings.
-    private function drawStatusRow(dc as Dc, cx as Number, y as Number) as Void {
+    // Two lines in the opening of the rings, each centered as one group.
+    // Line 1: a dot for the phone connection, then the weather with the high
+    // and the low of the day. Line 2: the next sunrise or sunset.
+    private function drawStatusRow(dc as Dc, cx as Number, y1 as Number, y2 as Number, clock as System.ClockTime) as Void {
         var font = Graphics.FONT_XTINY;
+        var left = Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER;
         var gap = 8;
-        var bodyWidth = 19;
-        var textGap = 4;
-        var phoneWidth = 11;
-        var bellWidth = 14;
+        var dotWidth = 10;
         var iconWidth = 18;
+        var arrowWidth = 6;
 
         var settings = System.getDeviceSettings();
-        var hasAlarm = StatusRow.hasAlarm(settings.alarmCount);
+        var fahrenheit = settings.temperatureUnits == System.UNIT_STATUTE;
 
         var conditions = Weather.getCurrentConditions();
-        var temperature = (conditions != null) ? conditions.temperature : null;
         var tempText = null;
-        if (conditions != null && temperature != null) {
-            if (settings.temperatureUnits == System.UNIT_STATUTE) {
-                temperature = (temperature * 9) / 5 + 32;
+        var highText = null;
+        var lowText = null;
+        if (conditions != null) {
+            var temperature = StatusRow.temperature(conditions.temperature, fahrenheit);
+            var high = StatusRow.temperature(conditions.highTemperature, fahrenheit);
+            var low = StatusRow.temperature(conditions.lowTemperature, fahrenheit);
+            if (temperature != null) {
+                tempText = temperature.format("%d") + "°";
+                // The high and the low show only as a pair.
+                if (high != null && low != null) {
+                    highText = high.format("%d");
+                    lowText = low.format("%d");
+                }
             }
-            tempText = temperature.format("%d") + "°";
         }
 
-        var stats = System.getSystemStats();
-        var percent = StatusRow.percent(stats.battery);
-        var daysText = StatusRow.daysText((stats has :batteryInDays) ? stats.batteryInDays : null, percent);
-        var batteryWidth = bodyWidth + 3 + textGap + dc.getTextWidthInPixels(daysText, font);
-
-        var parts = [batteryWidth, phoneWidth] as Array<Number>;
-        if (hasAlarm) {
-            parts.add(bellWidth);
-        }
+        // Weather: icon, 5, temperature, then 7, arrow, 2, high, 5, arrow, 2, low.
+        var parts = [dotWidth] as Array<Number>;
         if (tempText != null) {
-            parts.add(iconWidth + 5 + dc.getTextWidthInPixels(tempText, font));
+            var weatherWidth = iconWidth + 5 + dc.getTextWidthInPixels(tempText, font);
+            if (highText != null && lowText != null) {
+                weatherWidth += 7 + arrowWidth + 2 + dc.getTextWidthInPixels(highText, font)
+                    + 5 + arrowWidth + 2 + dc.getTextWidthInPixels(lowText, font);
+            }
+            parts.add(weatherWidth);
         }
         var x = cx - StatusRow.width(parts, gap) / 2;
 
-        // Battery: a small icon with the level bar, then the days that remain.
-        var batteryColor = StatusRow.isLow(percent) ? COLOR_HEART : Graphics.COLOR_WHITE;
-        dc.setPenWidth(1);
-        dc.setColor(COLOR_DIM, Graphics.COLOR_TRANSPARENT);
-        dc.drawRectangle(x, y - 5, bodyWidth, 11);
-        dc.fillRectangle(x + bodyWidth, y - 2, 3, 5);
-        dc.setColor(batteryColor, Graphics.COLOR_TRANSPARENT);
-        var fill = StatusRow.fillWidth(percent, bodyWidth - 4);
-        if (fill > 0) {
-            dc.fillRectangle(x + 2, y - 3, fill, 7);
+        // Phone: a blue disc when connected, a gray ring when not.
+        if (settings.phoneConnected) {
+            dc.setColor(COLOR_ACCENT, Graphics.COLOR_TRANSPARENT);
+            dc.fillCircle(x + 5, y1, 5);
+        } else {
+            dc.setColor(COLOR_DIM, Graphics.COLOR_TRANSPARENT);
+            dc.setPenWidth(2);
+            dc.drawCircle(x + 5, y1, 4);
+            dc.setPenWidth(1);
         }
-        dc.drawText(x + bodyWidth + 3 + textGap, y, font, daysText,
-            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-        x += batteryWidth + gap;
+        x += dotWidth + gap;
 
-        // Phone
-        var connected = settings.phoneConnected;
-        var px = x + 5;
-        dc.setPenWidth(2);
-        dc.setColor(connected ? COLOR_ACCENT : COLOR_TRACK, Graphics.COLOR_TRANSPARENT);
-        dc.drawRoundedRectangle(px - 5, y - 9, 11, 18, 2);
-        dc.fillRectangle(px - 1, y + 4, 3, 2);
-        if (!connected) {
-            dc.setColor(COLOR_HEART, Graphics.COLOR_TRANSPARENT);
-            dc.drawLine(px - 8, y + 9, px + 8, y - 9);
-        }
-        dc.setPenWidth(1);
-        x += phoneWidth + gap;
-
-        // Bell, only when an alarm is set.
-        if (hasAlarm) {
-            var bx = x + 7;
-            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-            dc.fillCircle(bx, y - 2, 5);
-            dc.fillPolygon([[bx - 5, y - 2], [bx + 6, y - 2], [bx + 6, y + 3], [bx + 8, y + 5], [bx - 7, y + 5], [bx - 5, y + 3]]);
-            dc.fillRectangle(bx - 1, y - 9, 2, 2);
-            dc.fillCircle(bx, y + 7, 2);
-            x += bellWidth + gap;
-        }
-
-        // Weather
         if (conditions != null && tempText != null) {
-            drawWeatherIcon(dc, x + 9, y, conditions.condition);
+            drawWeatherIcon(dc, x + 9, y1, conditions.condition);
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(x + iconWidth + 5, y, font, tempText,
-                Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+            x += iconWidth + 5;
+            dc.drawText(x, y1, font, tempText, left);
+            x += dc.getTextWidthInPixels(tempText, font);
+            if (highText != null && lowText != null) {
+                x += 7;
+                drawArrow(dc, x, y1, true, COLOR_STRESS);
+                x += arrowWidth + 2;
+                dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+                dc.drawText(x, y1, font, highText, left);
+                x += dc.getTextWidthInPixels(highText, font) + 5;
+                drawArrow(dc, x, y1, false, COLOR_LOW);
+                x += arrowWidth + 2;
+                dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+                dc.drawText(x, y1, font, lowText, left);
+            }
+        }
+
+        // Line 2: icon, 4, time.
+        var sun = _prayers.sun(clock);
+        if (sun != null) {
+            var sunIconWidth = 16;
+            var sunText = sun[1] as String;
+            x = cx - (sunIconWidth + 4 + dc.getTextWidthInPixels(sunText, font)) / 2;
+            drawSunIcon(dc, x, y2, sun[0] == PrayerSchedule.SUNRISE);
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(x + sunIconWidth + 4, y2, font, sunText, left);
+        }
+    }
+
+    // A small arrow, 6 wide and 11 high, with its left edge at x and its
+    // center at y.
+    private function drawArrow(dc as Dc, x as Number, y as Number, up as Boolean, color as Number) as Void {
+        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+        if (up) {
+            dc.fillPolygon([[x + 3, y - 6], [x + 7, y - 1], [x - 1, y - 1]]);
+            dc.fillRectangle(x + 2, y - 1, 2, 6);
+        } else {
+            dc.fillRectangle(x + 2, y - 5, 2, 6);
+            dc.fillPolygon([[x - 1, y + 1], [x + 7, y + 1], [x + 3, y + 6]]);
+        }
+    }
+
+    // A half sun on the horizon, 16 wide, with an arrow above it: up for the
+    // sunrise and down for the sunset. The left edge is at x, the center at y.
+    private function drawSunIcon(dc as Dc, x as Number, y as Number, rise as Boolean) as Void {
+        dc.setColor(COLOR_SUN, Graphics.COLOR_TRANSPARENT);
+        dc.fillCircle(x + 8, y + 7, 5);
+        // Hide the half of the disc that is below the horizon.
+        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
+        dc.fillRectangle(x, y + 8, 16, 6);
+        dc.setColor(COLOR_DIM, Graphics.COLOR_TRANSPARENT);
+        dc.fillRectangle(x, y + 7, 16, 2);
+
+        dc.setColor(COLOR_STRESS, Graphics.COLOR_TRANSPARENT);
+        if (rise) {
+            dc.fillPolygon([[x + 8, y - 9], [x + 13, y - 4], [x + 3, y - 4]]);
+            dc.fillRectangle(x + 7, y - 4, 2, 4);
+        } else {
+            dc.fillRectangle(x + 7, y - 8, 2, 4);
+            dc.fillPolygon([[x + 3, y - 4], [x + 13, y - 4], [x + 8, y + 1]]);
         }
     }
 }

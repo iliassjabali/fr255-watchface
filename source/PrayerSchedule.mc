@@ -11,7 +11,14 @@ module PrayerSchedule {
     const MAGHRIB = 3;
     const ISHA = 4;
 
+    // The two sun events.
+    const SUNRISE = 0;
+    const SUNSET = 1;
+
     const MINUTES_IN_DAY = 1440;
+
+    // The position of the sunrise in the six times of a day.
+    const SUNRISE_INDEX = 1;
 
     // The position of each prayer in the six times of a day.
     const TIME_INDEX = [0, 2, 3, 4, 5];
@@ -26,6 +33,24 @@ module PrayerSchedule {
             }
         }
         return (fajrTomorrow != null) ? [FAJR, fajrTomorrow] : null;
+    }
+
+    // The next sun event after now, as [SUNRISE or SUNSET, minutes].
+    // The sunset is the Maghrib. After the Maghrib it is the sunrise of
+    // tomorrow, or null if that time is unknown. Like next, an event at
+    // exactly now is already past (the comparison is "after now"). The times
+    // and now must be on the same clock: the result has the clock of the
+    // times.
+    function nextSun(today as Array<Number>, tomorrow as Array<Number>?, nowMinutes as Number) as Array<Number>? {
+        var sunrise = today[SUNRISE_INDEX];
+        if (sunrise > nowMinutes) {
+            return [SUNRISE, sunrise];
+        }
+        var sunset = today[TIME_INDEX[MAGHRIB]];
+        if (sunset > nowMinutes) {
+            return [SUNSET, sunset];
+        }
+        return (tomorrow != null) ? [SUNRISE, tomorrow[SUNRISE_INDEX]] : null;
     }
 
     // Minutes of the day in UTC to the local time of the device.

@@ -7,7 +7,7 @@ import Toybox.Time;
 import Toybox.Time.Gregorian;
 import Toybox.Weather;
 
-// Gives the next prayer to the view. It uses the official times from the web
+// Gives the next prayer and the next sunrise or sunset to the view. It uses the official times from the web
 // service when the watch is near a city of the timetable. In all other cases
 // it calculates the times at the exact position, with the official margins.
 // The logic is in PrayerStore, PrayerCalc and PrayerSchedule, which have unit
@@ -19,11 +19,13 @@ class PrayerProvider {
     // The result is kept for one minute, because the view can draw each second.
     private var _minute as Number = -1;
     private var _current as Array<String>?;
+    private var _sunMinute as Number = -1;
+    private var _sun as Array<Number or String>?;
 
     // The calculated times are kept for one day. They are in UTC.
     private var _calcDay as String = "";
     private var _calcToday as Array<Number>?;
-    private var _calcFajrTomorrow as Number?;
+    private var _calcTomorrow as Array<Number>?;
 
     function initialize() {
     }
@@ -31,6 +33,7 @@ class PrayerProvider {
     // Forget the kept result, for example after new data from the service.
     function invalidate() as Void {
         _minute = -1;
+        _sunMinute = -1;
     }
 
     // The next prayer as [name, time text], or null if it is not known.
@@ -41,6 +44,44 @@ class PrayerProvider {
             _current = find(nowMinutes, clock.timeZoneOffset);
         }
         return _current;
+    }
+
+    // The next sunrise or sunset as [PrayerSchedule.SUNRISE or SUNSET, time
+    // text], or null if it is not known. The times are the sunrise and the
+    // Maghrib of the same timetable as the prayers.
+    function sun(clock as System.ClockTime) as Array<Number or String>? {
+        var nowMinutes = clock.hour * 60 + clock.min;
+        if (nowMinutes != _sunMinute) {
+            _sunMinute = nowMinutes;
+            _sun = findSun(nowMinutes, clock.timeZoneOffset);
+        }
+        return _sun;
+    }
+
+    private function findSun(nowMinutes as Number, offset as Number) as Array<Number or String>? {
+        var now = Time.now();
+        var today = dayText(now);
+        var stored = Storage.getValue(PrayerStore.KEY);
+        var todayTimes = PrayerStore.today(stored, today, dayText(now.subtract(new Time.Duration(SECONDS_IN_DAY)) as Time.Moment));
+        var tomorrowTimes = PrayerStore.tomorrow(stored, today);
+
+        // The calculated times fill each day that the service did not send.
+        if (todayTimes == null || tomorrowTimes == null) {
+            calculate(now, today, position());
+            if (todayTimes == null) {
+                todayTimes = _calcToday;
+            }
+            if (tomorrowTimes == null) {
+                tomorrowTimes = _calcTomorrow;
+            }
+        }
+        if (todayTimes == null) {
+            return null;
+        }
+        var next = PrayerSchedule.nextSun(local(todayTimes, offset),
+            (tomorrowTimes != null) ? local(tomorrowTimes, offset) : null, nowMinutes);
+        // The text has no mark for a calculated time: the line has no space for it.
+        return (next != null) ? [next[0], PrayerSchedule.timeText(next[1], true)] : null;
     }
 
     private function find(nowMinutes as Number, offset as Number) as Array<String>? {
@@ -62,7 +103,8 @@ class PrayerProvider {
         if (calcToday == null) {
             return null;
         }
-        var fajrTomorrow = localOrNull(_calcFajrTomorrow, offset);
+        var calcTomorrow = _calcTomorrow;
+        var fajrTomorrow = localOrNull((calcTomorrow != null) ? calcTomorrow[0] : null, offset);
         if (official != null) {
             // The official prayers of today are done, and the service did not
             // send the Fajr of tomorrow.
@@ -72,7 +114,7 @@ class PrayerProvider {
         return (nextCalc != null) ? text(nextCalc, false) : null;
     }
 
-    // Calculate the times of today and the Fajr of tomorrow, one time for each day.
+    // Calculate the times of today and of tomorrow, one time for each day.
     private function calculate(now as Time.Moment, today as String, position as Array<Double>) as Void {
         if (today.equals(_calcDay)) {
             return;
@@ -80,7 +122,7 @@ class PrayerProvider {
         var info = Gregorian.info(now, Time.FORMAT_SHORT);
         _calcToday = PrayerCalc.officialTimes(position[0], position[1], info.year, info.month as Number, info.day);
         var next = Gregorian.info(now.add(new Time.Duration(SECONDS_IN_DAY)), Time.FORMAT_SHORT);
-        _calcFajrTomorrow = PrayerCalc.officialTimes(position[0], position[1], next.year, next.month as Number, next.day)[0];
+        _calcTomorrow = PrayerCalc.officialTimes(position[0], position[1], next.year, next.month as Number, next.day);
         _calcDay = today;
     }
 

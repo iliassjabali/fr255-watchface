@@ -1,0 +1,1005 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FR255 Status Row Picker</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;900&family=Roboto+Condensed:wght@700&family=Noto+Kufi+Arabic:wght@700&display=swap">
+<style>
+  :root { --bg: #101214; --card: #1a1d21; --line: #2c3138; --fg: #e8eaed; --muted: #9aa3ad; --accent: #00AAFF; --bad: #FF0055; --good: #55FF00; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 Roboto, Arial, sans-serif; }
+  .page { max-width: 1280px; margin: 0 auto; padding: 24px 16px 40px; }
+  h1 { font-family: "Roboto Condensed", "Arial Narrow", Arial, sans-serif; margin: 0; font-size: 28px; }
+  h2 { font-family: "Roboto Condensed", "Arial Narrow", Arial, sans-serif; margin: 0 0 8px; font-size: 18px; }
+  h3 { font-family: "Roboto Condensed", "Arial Narrow", Arial, sans-serif; margin: 14px 0 6px; font-size: 15px; color: var(--muted); font-weight: 700; }
+  .muted { color: var(--muted); }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin: 14px 0; font-size: 14px; }
+  .bar .label { color: var(--muted); }
+  button { background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 12px; font: inherit; font-size: 14px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.preset { font-weight: 500; }
+  button.sm { padding: 0 8px; line-height: 22px; font-size: 13px; }
+  input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
+  .main { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; }
+  .card.big { flex: 0 1 640px; }
+  .card.side { flex: 1 1 400px; }
+  .card canvas { display: block; max-width: 100%; height: auto; margin: 4px auto 6px; }
+  #big { width: 600px; aspect-ratio: 1; }
+  #zoom { width: 600px; aspect-ratio: 180 / 46; border-radius: 6px; }
+  #real { width: 260px; height: 260px; }
+  .realrow { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+  .realrow .info { flex: 1 1 260px; min-width: 0; }
+  .realrow canvas { margin: 4px 0 6px; }
+  .status { margin: 0 0 10px; padding: 8px 10px; border-radius: 8px; font-size: 14px; border: 1px solid var(--line); }
+  .status.ok { color: var(--good); }
+  .status.over { color: var(--bad); border-color: var(--bad); font-weight: 700; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+  td, th { text-align: left; padding: 3px 6px; border-bottom: 1px solid var(--line); }
+  td:last-child, th:last-child { text-align: right; }
+  th { color: var(--muted); font-weight: 500; }
+  .tag { display: inline-block; margin-right: 8px; padding: 0 7px; border-radius: 5px; background: var(--accent); color: #000;
+    font: 700 14px "Roboto Condensed", Arial, sans-serif; }
+  .tag.ref { background: var(--muted); }
+  .note { font-size: 13px; margin: 8px 0 0; }
+  .selection { display: flex; gap: 8px; align-items: center; margin: 4px 0 10px; }
+  .selection code { flex: 1; padding: 6px 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; font: 14px/1.4 Roboto, Arial, sans-serif; color: var(--fg); overflow-wrap: anywhere; }
+  .controls { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px; align-items: flex-start; }
+  .controls .card { flex: 1 1 340px; }
+  .opt { display: flex; align-items: center; gap: 10px; padding: 3px 0; font-size: 14px; }
+  .opt canvas { margin: 0; flex: 0 0 auto; width: 110px; height: 24px; background: #000; border-radius: 4px; }
+  .opt .name { flex: 1; }
+  .opt .val { color: var(--muted); font-size: 12.5px; }
+  .opt.sub { margin-left: 34px; font-size: 13px; color: var(--muted); }
+  .opt.sub canvas { display: none; }
+  .opt.disabled { opacity: .45; }
+  ol.order { margin: 0; padding: 0; list-style: none; }
+  ol.order li { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  ol.order li .n { color: var(--muted); width: 18px; text-align: right; font-variant-numeric: tabular-nums; }
+  ol.order li .t { flex: 1; }
+  ol.order li .w { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  ol.order li button:disabled { opacity: .35; cursor: default; }
+  ol.order li.grp { color: var(--muted); font: 700 14px "Roboto Condensed", "Arial Narrow", Arial, sans-serif; padding-top: 10px; }
+  ol.order li.grp:first-child { padding-top: 2px; }
+  ol.order li.empty { color: var(--muted); font-size: 13px; }
+  .seg { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12.5px; }
+  .seg button { padding: 0 7px; }
+  .seg button.on { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 700; }
+  .ypos { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 10px 0 0; font-size: 14px; }
+  .ypos input[type=number] { width: 64px; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; font: inherit; font-size: 14px; }
+  .ypos input[type=number]:disabled { opacity: .45; }
+  .ypos input.manual { border-color: var(--accent); }
+  .status.warn { color: #FFAA00; border-color: #FFAA00; }
+  .orderhead { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin: 14px 0 6px; }
+  .orderhead h3 { margin: 0; }
+  .orderhead label { font-size: 14px; }
+  button.lineBtn { padding: 0 10px; line-height: 24px; font-size: 13px; font-weight: 500; border-color: var(--accent); color: var(--accent); white-space: nowrap; }
+  button.lineBtn:hover { background: var(--accent); color: #000; }
+  .dialwarn .status { margin: 6px 0 0; }
+  .over-text { color: var(--bad); font-weight: 700; }
+  .ok-text { color: var(--good); }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>FR255 Status Row Picker</h1>
+  <p class="muted" style="margin:6px 0 0">Choose what the status row shows. The face is the shipped face (hour 70 at y 78, minutes 94, event line at y 196). Each line is centered on x 130; line 1 is at y 222 when line 2 is empty. A second line goes under the first.
+    The page tells you whether the row fits in the opening of the rings. The state is in the address (<code>?s=...</code>), so a reload or a shared link restores it.</p>
+
+  <div class="bar" id="presets"><span class="label">Presets</span></div>
+
+  <div class="main">
+    <section class="card big">
+      <canvas id="big" role="img" aria-label="The face, large"></canvas>
+      <div class="dialwarn" id="dialWarn" role="alert"></div>
+      <h3>The status row at 3.3 times its size</h3>
+      <canvas id="zoom" role="img" aria-label="The status row, zoomed"></canvas>
+    </section>
+    <section class="card side">
+      <div class="realrow">
+        <div>
+          <h2><span class="tag ref">1:1</span>Real size, 260 x 260</h2>
+          <canvas id="real" role="img" aria-label="The face at real size"></canvas>
+        </div>
+        <div class="info">
+          <h2>Fit</h2>
+          <div id="status"></div>
+          <table id="fit"></table>
+          <label style="display:block;margin-top:10px;font-size:14px"><input type="checkbox" id="limits"> Draw the limits (screen margin circle, ring ends, line boxes)</label>
+        </div>
+      </div>
+      <h3>Your selection</h3>
+      <div class="selection"><code id="summary"></code><button id="copy" type="button">Copy</button></div>
+      <div class="orderhead">
+        <h3>Order of the row</h3>
+        <label><input type="checkbox" id="wrap"> Wrap automatically</label>
+      </div>
+      <p class="note muted" id="wrapNote"></p>
+      <ol class="order" id="order"></ol>
+      <div class="ypos">
+        <label>Line 1 y <input type="number" id="y1" min="0" max="259" step="1"></label>
+        <label>Line 2 y <input type="number" id="y2" min="0" max="259" step="1"></label>
+        <button id="resetPos" type="button">Reset positions</button>
+      </div>
+      <p class="note muted" id="posNote"></p>
+      <h3>Width of the presets</h3>
+      <table id="presetTable"></table>
+    </section>
+  </div>
+
+  <div class="controls">
+    <section class="card">
+      <h2>Phone connection</h2>
+      <div id="phoneOpts"></div>
+      <label class="opt"><input type="checkbox" id="conn"> <span class="name">Phone connected (preview of the two states)</span></label>
+      <h3>Samples</h3>
+      <label class="opt"><input type="checkbox" id="dnd"> <span class="name">Do not disturb mode is on</span></label>
+      <p class="note muted">The Do not disturb item shows only when the mode is on, so it takes no room when the mode is off. The unread count is 3. The battery is 87%, 5 days.</p>
+    </section>
+    <section class="card">
+      <h2>Items</h2>
+      <div id="itemOpts"></div>
+    </section>
+  </div>
+  <p class="note muted" id="geometry"></p>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  // The drawing code below is copied from hour-minutes.html (the face at hour 70). The status row is built from the controls.
+  var C = { bg: '#000000', fg: '#FFFFFF', dim: '#AAAAAA', track: '#555555', accent: '#00AAFF', heart: '#FF0055', sun: '#FFFF55' };
+  var D = { hour: '10', minute: '50', date: 'TUE 10', hr: '62', energy: 76, battery: 87, event: '11:35', countdown: 'in 45 min' };
+  var X = { stress: 28 };
+  var ORANGE = '#FFAA00', RAIN = '#55AAFF', GREEN = '#55FF55', RED = '#FF5555', CYAN = '#55FFFF', PURPLE = '#AA55FF', PINK = '#FF55AA', MOON = '#AAAAFF', FLAME = '#FF5500';
+  var HR_PART = D.hr / 180, BODY_PART = D.energy / 100;
+  var CAP = 0.711, XT = 16, cx = 130, cy = 130, EPS = 1e-6;
+  var PRAYER = { time: '13:15' };
+  var ARABIC = 'الظهر';
+  var DIGITS = '0123456789'.split('');
+
+  var RADIUS = 106, MARGIN = 4, SAFE = RADIUS - MARGIN;
+  var EVENT_TOP = 187, HOUR_GAP = 8;
+  var LINE_DATE = -19, LINE_PRAYER = -3, LINE_TIME = 13;
+  var HOUR0 = 47, HOUR_Y0 = 69, MIN0 = 120, MIN_Y0 = 134;
+  var CONTENT_TOP = HOUR_Y0 - (CAP * HOUR0) / 2;
+  var GAP_HM = (MIN_Y0 - (CAP * MIN0) / 2) - (HOUR_Y0 + (CAP * HOUR0) / 2);
+  var GAP_ME = EVENT_TOP - (MIN_Y0 + (CAP * MIN0) / 2);
+  var HOUR_SIZE = 70;
+
+  // The status row: its center y, the gap between the items and the margin to the screen edge.
+  var ROW_Y = cy + 92, ROW_GAP = 8, SCREEN_MARGIN = 6, RING_CLEAR = 3;
+  var EVENT_Y = 196, EVENT_INK_BOTTOM = 204;   // The event line: its y, and the bottom of its ink (the calendar icon, y + 8).
+  var EVENT_CLEAR = 3, LINE_GAP = 2;           // The least clear gap: line 1 to the event line, and line 1 to line 2.
+  var RING_IN = 106, RING_OUT = 128;     // The three rings (radii 125, 117 and 109, width 6) fill the band 106 to 128.
+
+  function kit(ctx) {
+    var k = { ctx: ctx };
+    k.font = function (size, family) {
+      ctx.font = (family === 'time' ? '900 ' : '700 ') + size + 'px ' +
+        (family === 'time' ? 'Roboto, "Arial Black", sans-serif' : '"Roboto Condensed", "Arial Narrow", Arial, sans-serif');
+    };
+    k.text = function (str, x, y, size, color, align, family) {
+      k.font(size, family);
+      ctx.fillStyle = color; ctx.textAlign = align || 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.fillText(str, x, y + (size * CAP) / 2);
+    };
+    k.width = function (str, size, family) { k.font(size, family); return ctx.measureText(str).width; };
+    k.line = function (x1, y1, x2, y2, color, w) {
+      ctx.strokeStyle = color; ctx.lineWidth = w || 1; ctx.lineCap = 'butt';
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    };
+    // A line with a black halo, to cross an icon.
+    k.slash = function (x1, y1, x2, y2, color, w) {
+      k.line(x1, y1, x2, y2, C.bg, (w || 2) + 2); k.line(x1, y1, x2, y2, color, w || 2);
+    };
+    k.path = function (pts, color, w) {
+      ctx.strokeStyle = color; ctx.lineWidth = w || 1; ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
+      ctx.beginPath();
+      pts.forEach(function (p, i) { if (i) { ctx.lineTo(p[0], p[1]); } else { ctx.moveTo(p[0], p[1]); } });
+      ctx.stroke();
+    };
+    k.poly = function (pts, color) {
+      ctx.fillStyle = color; ctx.beginPath();
+      pts.forEach(function (p, i) { if (i) { ctx.lineTo(p[0], p[1]); } else { ctx.moveTo(p[0], p[1]); } });
+      ctx.closePath(); ctx.fill();
+    };
+    k.disc = function (x, y, r, color) { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); };
+    k.ring = function (x, y, r, color, w) { ctx.strokeStyle = color; ctx.lineWidth = w; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke(); };
+    k.rect = function (x, y, w, h, color) { ctx.fillStyle = color; ctx.fillRect(x, y, w, h); };
+    k.box = function (x, y, w, h, color) { ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1); };
+    k.arcAt = function (x, y, r, from, to, color, w) {
+      ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineCap = 'butt';
+      ctx.beginPath(); ctx.arc(x, y, r, (from - 90) * Math.PI / 180, (to - 90) * Math.PI / 180); ctx.stroke();
+    };
+    k.batteryDays = function (x, y, percent, text) {
+      var low = percent <= 20, color = low ? C.heart : C.fg;
+      k.box(x, y - 5, 19, 11, C.dim); k.rect(x + 19, y - 2, 3, 5, C.dim);
+      if (percent > 0) { k.rect(x + 2, y - 3, Math.floor((15 * percent) / 100), 7, color); }
+      k.text(text, x + 26, y, XT, color);
+    };
+    k.prayerFont = function () { ctx.font = '700 15px "Noto Kufi Arabic", sans-serif'; ctx.direction = 'rtl'; };
+    k.prayerMetrics = function (str) {
+      k.prayerFont(); ctx.textAlign = 'left';
+      var m = ctx.measureText(str);
+      var w = Math.ceil(Math.max(m.width, m.actualBoundingBoxLeft + m.actualBoundingBoxRight));
+      ctx.direction = 'ltr';
+      return { w: w, up: m.actualBoundingBoxAscent, down: m.actualBoundingBoxDescent, left: m.actualBoundingBoxLeft, right: m.actualBoundingBoxRight };
+    };
+    k.prayerName = function (str, x, y, color) {
+      k.prayerFont();
+      ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.fillText(str, x, y + 4);
+      ctx.direction = 'ltr';
+    };
+    k.digitInk = function (size) {
+      var ink = 0;
+      k.font(size, 'time'); ctx.textAlign = 'center';
+      DIGITS.forEach(function (d) {
+        var m = ctx.measureText(d);
+        ink = Math.max(ink, m.actualBoundingBoxLeft + m.actualBoundingBoxRight);
+      });
+      return ink;
+    };
+    k.sun = function (x, y) {
+      k.disc(x, y, 4, C.sun);
+      [[-8, 0, 9, 0], [0, -8, 0, 9], [-6, -6, 7, 7], [-6, 6, 7, -7]].forEach(function (r) {
+        k.line(x + r[0], y + r[1], x + r[2], y + r[3], C.sun, 1);
+      });
+    };
+    k.calendar = function (x, y) {
+      k.box(x, y - 6, 16, 14, C.dim); k.rect(x, y - 6, 16, 4, C.dim);
+      k.rect(x + 3, y - 9, 2, 4, C.dim); k.rect(x + 11, y - 9, 2, 4, C.dim);
+      k.rect(x + 4, y + 1, 3, 3, C.dim); k.rect(x + 9, y + 1, 3, 3, C.dim);
+    };
+    k.eventLine = function (y) {
+      var rest = '  ' + D.countdown, w1 = k.width(D.event, XT), w2 = k.width(rest, XT), x = cx - (16 + 7 + w1 + w2) / 2;
+      k.calendar(x, y); k.text(D.event, x + 23, y, XT, C.fg); k.text(rest, x + 23 + w1, y, XT, C.dim);
+    };
+    return k;
+  }
+
+  function rings(k) {
+    var vals = [[HR_PART, C.heart], [BODY_PART, '#00AAFF'], [X.stress / 100, ORANGE]];
+    vals.forEach(function (v, i) {
+      k.arcAt(cx, cy, 125 - 8 * i, 225, 495, C.track, 6);
+      k.arcAt(cx, cy, 125 - 8 * i, 225, 225 + 270 * v[0], v[1], 6);
+    });
+  }
+
+  function cellWidth(k, size) {
+    var cell = 0;
+    DIGITS.forEach(function (d) { cell = Math.max(cell, k.width(d, size, 'time')); });
+    return Math.ceil(cell) + 2;
+  }
+  function farthest(b) {
+    var d = 0;
+    [[b.x0, b.y0], [b.x1, b.y0], [b.x0, b.y1], [b.x1, b.y1]].forEach(function (p) { d = Math.max(d, Math.hypot(p[0] - cx, p[1] - cy)); });
+    return d;
+  }
+  function topBoxes(k, hourSize, yc) {
+    var cell = cellWidth(k, hourSize), hw = cell * D.hour.length, h = CAP * hourSize, pad = (cell - k.digitInk(hourSize)) / 2;
+    var date = Math.ceil(k.width(D.date, XT)), time = Math.ceil(k.width(PRAYER.time, XT)), pm = k.prayerMetrics(ARABIC);
+    var column = Math.max(date, pm.w, time);
+    var x = Math.floor(cx - (hw + HOUR_GAP + column) / 2), lx = x + hw + HOUR_GAP, th = CAP * XT / 2;
+    var base = yc + LINE_PRAYER + 4;
+    return {
+      cell: cell, x: x, lx: lx,
+      boxes: [
+        { name: 'hour', lim: SAFE, x0: x + pad, y0: yc - h / 2, x1: x + hw - pad, y1: yc + h / 2 },
+        { name: 'date', lim: RADIUS, x0: lx, y0: yc + LINE_DATE - th, x1: lx + date, y1: yc + LINE_DATE + th },
+        { name: 'prayer name', lim: RADIUS, x0: lx - pm.left, y0: base - pm.up, x1: lx + pm.right, y1: base + pm.down },
+        { name: 'prayer time', lim: RADIUS, x0: lx, y0: yc + LINE_TIME - th, x1: lx + time, y1: yc + LINE_TIME + th }
+      ]
+    };
+  }
+  function minutesBox(k, size, ym) {
+    var cell = cellWidth(k, size), w = cell * D.minute.length - (cell - k.digitInk(size)), h = CAP * size;
+    return { name: 'minutes', lim: SAFE, x0: cx - w / 2, y0: ym - h / 2, x1: cx + w / 2, y1: ym + h / 2 };
+  }
+  function inside(boxes) { return boxes.every(function (b) { return farthest(b) <= b.lim + EPS; }); }
+  function layout(k, hourSize) {
+    var yc = Math.ceil(CONTENT_TOP + (CAP * hourSize) / 2 - EPS);
+    var top = topBoxes(k, hourSize, yc);
+    while (!inside(top.boxes) && yc < cy) { yc++; top = topBoxes(k, hourSize, yc); }
+    var hourBottom = yc + (CAP * hourSize) / 2;
+    var size = 0, ym = 0;
+    for (var s = 200; s >= 8; s--) {
+      var h = CAP * s;
+      var lo = hourBottom + GAP_HM + h / 2, hi = EVENT_TOP - GAP_ME - h / 2;
+      var y = Math.ceil(lo - EPS);
+      if (y > hi + EPS) { continue; }
+      var b = minutesBox(k, s, y);
+      if (farthest(b) <= b.lim + EPS) { size = s; ym = y; break; }
+    }
+    return { hourSize: hourSize, yc: yc, top: top, minSize: size, minY: ym };
+  }
+
+  // ---- The icons. Each icon is drawn from its left edge x, centered on y. w is the width of the cell, h the half height of the ink.
+  var ICON = {
+    phone: { w: 11, h: 10, ov: 1, draw: function (k, x, y, c) {
+      var ctx = k.ctx; ctx.strokeStyle = c; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect(x, y - 9, 11, 18, 2); ctx.stroke();
+      k.rect(x + 4, y + 4, 3, 2, c);
+    } },
+    phoneLost: { w: 11, h: 10, ov: 3, draw: function (k, x, y, c) {
+      ICON.phone.draw(k, x, y, c); k.slash(x - 3, y + 9, x + 13, y - 9, C.heart, 2);
+    } },
+    bt: { w: 10, h: 8, ov: 0, draw: function (k, x, y, c) {
+      k.path([[x, y - 4], [x + 9, y + 4], [x + 4.5, y + 8], [x + 4.5, y - 8], [x + 9, y - 4], [x, y + 4]], c, 1.6);
+    } },
+    dot: { w: 10, h: 5, ov: 0, filled: true, draw: function (k, x, y, c, filled) {
+      if (filled) { k.disc(x + 5, y, 5, c); } else { k.ring(x + 5, y, 4, c, 2); }
+    } },
+    envelope: { w: 14, h: 5, ov: 0, draw: function (k, x, y, c) {
+      k.box(x, y - 5, 14, 10, c);
+      k.path([[x + 0.5, y - 4.5], [x + 7, y + 1], [x + 13.5, y - 4.5]], c, 1);
+    } },
+    envelopeOff: { w: 14, h: 8, ov: 1, draw: function (k, x, y, c) {
+      ICON.envelope.draw(k, x, y, c); k.slash(x + 0.5, y + 8, x + 14.5, y - 8, C.heart, 2);
+    } },
+    bell: { w: 14, h: 9, ov: 1, draw: function (k, x, y, c) {
+      var bx = x + 7;
+      k.disc(bx, y - 2, 5, c);
+      k.poly([[bx - 5, y - 2], [bx + 6, y - 2], [bx + 6, y + 3], [bx + 8, y + 5], [bx - 7, y + 5], [bx - 5, y + 3]], c);
+      k.rect(bx - 1, y - 9, 2, 2, c); k.disc(bx, y + 7, 2, c);
+    } },
+    sun: { w: 18, h: 9, ov: 0, draw: function (k, x, y) { k.sun(x + 9, y); } },
+    arrowUp: { w: 6, h: 5, ov: 0, draw: function (k, x, y, c) {
+      k.poly([[x + 3, y - 5], [x + 6, y - 1], [x, y - 1]], c); k.rect(x + 2, y - 1, 2, 6, c);
+    } },
+    arrowDown: { w: 6, h: 5, ov: 0, draw: function (k, x, y, c) {
+      k.poly([[x + 3, y + 5], [x + 6, y + 1], [x, y + 1]], c); k.rect(x + 2, y - 5, 2, 6, c);
+    } },
+    drop: { w: 8, h: 7, ov: 0, draw: function (k, x, y, c) {
+      k.disc(x + 4, y + 2, 4, c); k.poly([[x + 4, y - 7], [x + 7.4, y + 0.5], [x + 0.6, y + 0.5]], c);
+    } },
+    wind: { w: 14, h: 5, ov: 0, draw: function (k, x, y, c) {
+      k.line(x, y - 4, x + 10, y - 4, c, 2); k.line(x, y, x + 13, y, c, 2); k.line(x, y + 4, x + 8, y + 4, c, 2);
+      k.rect(x + 10, y - 5, 2, 2, c); k.rect(x + 13, y - 1, 1, 2, c);
+    } },
+    shoe: { w: 14, h: 6, ov: 0, draw: function (k, x, y, c) {
+      k.poly([[x, y - 6], [x + 5, y - 6], [x + 5, y - 2], [x + 9, y], [x + 14, y + 2], [x + 14, y + 4], [x, y + 4]], c);
+      k.rect(x, y + 4, 14, 2, C.fg);
+    } },
+    sunset: { w: 16, h: 9, ov: 0, draw: function (k, x, y) {
+      k.poly([[x + 4, y - 4], [x + 12, y - 4], [x + 8, y]], ORANGE); k.rect(x + 7, y - 8, 2, 5, ORANGE);
+      var ctx = k.ctx; ctx.fillStyle = C.sun; ctx.beginPath(); ctx.arc(x + 8, y + 7, 5, Math.PI, 0); ctx.fill();
+      k.rect(x, y + 7, 16, 2, C.dim);
+    } },
+    crescent: { w: 10, h: 6, ov: 0, draw: function (k, x, y, c) {
+      k.disc(x + 5, y, 6, c); k.disc(x + 8.5, y - 2, 5, C.bg);
+    } },
+    bolt: { w: 9, h: 8, ov: 0, draw: function (k, x, y, c) {
+      k.poly([[x + 5, y - 8], [x, y + 1], [x + 4, y + 1], [x + 3, y + 8], [x + 9, y - 2], [x + 5, y - 2], [x + 8, y - 8]], c);
+    } },
+    flame: { w: 10, h: 8, ov: 0, draw: function (k, x, y) {
+      k.poly([[x + 5, y - 8], [x + 8, y - 2], [x + 10, y + 2], [x + 8, y + 7], [x + 5, y + 8], [x + 2, y + 7], [x, y + 2], [x + 2, y - 1], [x + 3, y + 1], [x + 4, y - 4]], FLAME);
+      k.poly([[x + 5, y + 1], [x + 7, y + 4], [x + 6, y + 7], [x + 4, y + 7], [x + 3, y + 4]], C.sun);
+    } },
+    pin: { w: 9, h: 8, ov: 0, draw: function (k, x, y, c) {
+      k.disc(x + 4.5, y - 3.5, 4.5, c); k.poly([[x + 0.3, y - 1], [x + 8.7, y - 1], [x + 4.5, y + 8]], c); k.disc(x + 4.5, y - 3.5, 2, C.bg);
+    } },
+    stairs: { w: 12, h: 6, ov: 0, draw: function (k, x, y, c) {
+      k.poly([[x, y + 6], [x, y + 2], [x + 4, y + 2], [x + 4, y - 2], [x + 8, y - 2], [x + 8, y - 6], [x + 12, y - 6], [x + 12, y + 6]], c);
+    } },
+    hourglass: { w: 9, h: 8, ov: 0, draw: function (k, x, y, c) {
+      k.poly([[x, y - 8], [x + 9, y - 8], [x + 4.5, y]], c); k.poly([[x + 4.5, y], [x + 9, y + 8], [x, y + 8]], c);
+      k.rect(x, y - 8, 9, 2, C.fg); k.rect(x, y + 6, 9, 2, C.fg);
+    } },
+    runner: { w: 14, h: 8, ov: 0, draw: function (k, x, y, c) {
+      k.disc(x + 9, y - 6, 2.2, c);
+      k.path([[x + 8, y - 3], [x + 6, y + 1]], c, 2.4);
+      k.path([[x + 12, y - 1], [x + 8, y - 3], [x + 3, y - 2]], c, 1.8);
+      k.path([[x + 10, y + 8], [x + 10, y + 4], [x + 6, y + 1], [x + 1, y + 4]], c, 1.8);
+    } }
+  };
+
+  // ---- The items. build() returns { w, h, ov, draw(k, x, y) } or null when the item draws nothing.
+  function ico(name, color, extra) {
+    var i = ICON[name];
+    var o = { w: i.w, h: i.h, ov: i.ov, draw: function (k, x, y) { i.draw(k, x, y, color, extra); } };
+    return o;
+  }
+  function txt(k, str, color) {
+    return { w: Math.ceil(k.width(str, XT)), h: 6, ov: 0, draw: function (kk, x, y) { kk.text(str, x, y, XT, color || C.fg); } };
+  }
+  // A group of parts. Each part has gb, the gap before it (4 by default).
+  function seq(parts) {
+    var total = 0, h = 0, ov = 0;
+    parts.forEach(function (p, i) { total += (i ? (p.gb === undefined ? 4 : p.gb) : 0) + p.w; h = Math.max(h, p.h); ov = Math.max(ov, p.ov || 0); });
+    return { w: total, h: h, ov: ov, draw: function (k, x, y) {
+      parts.forEach(function (p, i) { if (i) { x += (p.gb === undefined ? 4 : p.gb); } p.draw(k, x, y); x += p.w; });
+    } };
+  }
+  function gb(part, g) { part.gb = g; return part; }
+
+  var PHONE_IDS = ['phone', 'bt', 'lost', 'notif', 'dot'];
+  var SUBS = { weather: ['hilo', 'rain', 'wind'], steps: ['pct'] };
+  var SUB_LABEL = { hilo: 'high and low', rain: 'chance of rain', wind: 'wind', pct: 'as percentage of the goal' };
+  var SUB_SHORT = { hilo: 'high/low', rain: 'rain', wind: 'wind', pct: '% of goal' };
+  var NAME = {
+    phone: 'Phone icon', bt: 'Bluetooth', lost: 'Phone, only when lost', notif: 'Notifications', dot: 'Dot',
+    weather: 'Weather', steps: 'Steps', sun: 'Next sunrise or sunset', hijri: 'Hijri date', intensity: 'Intensity minutes', calories: 'Calories',
+    distance: 'Distance', floors: 'Floors', recovery: 'Recovery time', weekrun: 'Weekly run distance', dnd: 'Do not disturb',
+    battery: 'Battery days', alarm: 'Alarm bell'
+  };
+  var SAMPLE = {
+    weather: '18°', steps: '6240', sun: '17:32', hijri: '20 JUM I', intensity: '95/150', calories: '1840', distance: '4.2 km', floors: '7',
+    recovery: '14 h', weekrun: '23 km', dnd: 'on only', battery: '5d', alarm: ''
+  };
+  var ITEM_IDS = ['weather', 'steps', 'sun', 'hijri', 'intensity', 'calories', 'distance', 'floors', 'recovery', 'weekrun', 'dnd', 'battery', 'alarm'];
+  var PHONE_NOTE = {
+    phone: 'blue / gray with a red line', bt: 'blue / gray', lost: 'nothing / phone with a line', notif: 'envelope and 3 / envelope with a line', dot: 'blue dot / hollow dot', none: ''
+  };
+
+  function isPhone(id) { return PHONE_IDS.indexOf(id) >= 0; }
+
+  function build(k, id, st) {
+    switch (id) {
+      case 'phone': return st.conn ? ico('phone', C.accent) : ico('phoneLost', C.track);
+      case 'bt': return ico('bt', st.conn ? C.accent : C.dim);
+      case 'lost': return st.conn ? null : ico('phoneLost', C.dim);
+      case 'notif': return st.conn ? seq([ico('envelope', C.fg), txt(k, '3')]) : ico('envelopeOff', C.dim);
+      case 'dot': return ico('dot', st.conn ? C.accent : C.dim, st.conn);
+      case 'weather': {
+        var parts = [ico('sun'), gb(txt(k, '18°'), 5)];
+        if (st.sub.hilo) { parts.push(gb(ico('arrowUp', ORANGE), 7), gb(txt(k, '21'), 2), gb(ico('arrowDown', RAIN), 5), gb(txt(k, '9'), 2)); }
+        if (st.sub.rain) { parts.push(gb(ico('drop', RAIN), 7), gb(txt(k, '40%'), 3)); }
+        if (st.sub.wind) { parts.push(gb(ico('wind', C.dim), 7), gb(txt(k, '12 km/h'), 3)); }
+        return seq(parts);
+      }
+      case 'steps': return seq([ico('shoe', GREEN), txt(k, st.sub.pct ? '62%' : '6240')]);
+      case 'sun': return seq([ico('sunset'), txt(k, '17:32')]);
+      case 'hijri': return seq([ico('crescent', GREEN), txt(k, '20 JUM I')]);
+      case 'intensity': return seq([ico('bolt', ORANGE), txt(k, '95/150')]);
+      case 'calories': return seq([ico('flame'), txt(k, '1840')]);
+      case 'distance': return seq([ico('pin', RED), txt(k, '4.2 km')]);
+      case 'floors': return seq([ico('stairs', CYAN), txt(k, '7')]);
+      case 'recovery': return seq([ico('hourglass', PURPLE), txt(k, '14 h')]);
+      case 'weekrun': return seq([ico('runner', PINK), txt(k, '23 km')]);
+      case 'dnd': return st.dnd ? ico('crescent', MOON) : null;
+      case 'battery': {
+        var days = '5d';
+        return { w: 19 + 3 + 4 + Math.ceil(k.width(days, XT)), h: 6, ov: 0, draw: function (kk, x, y) { kk.batteryDays(x, y, D.battery, days); } };
+      }
+      case 'alarm': return ico('bell', C.fg);
+    }
+    return null;
+  }
+
+  // A line: the items in order, centered as one group.
+  function rowLayout(k, ids, st) {
+    var items = ids.map(function (id) { return { id: id, it: build(k, id, st) }; }).filter(function (e) { return e.it; });
+    var total = ROW_GAP * Math.max(0, items.length - 1), h = 0;
+    items.forEach(function (e) { total += e.it.w; h = Math.max(h, e.it.h); });
+    var start = Math.floor(cx - total / 2);
+    var left = items.length ? start - items[0].it.ov : cx, right = items.length ? start + total + items[items.length - 1].it.ov : cx;
+    return { items: items, total: total, h: items.length ? h : 6, start: start, left: left, right: right };
+  }
+
+  function drawRow(k, R, y) {
+    var x = R.start;
+    R.items.forEach(function (e) { e.it.draw(k, x, y); x += e.it.w + ROW_GAP; });
+  }
+
+  // The width limit. A line is a rectangle from dt to db below the center of the dial, symmetric about x 130. y is the center of the line.
+  //  - The screen: the corners stay SCREEN_MARGIN inside the screen circle (radius 130 - 6 = 124). The bottom corners bind.
+  //  - The rings: the open rings end on two radial lines at 45 degrees from the bottom. A corner at the top of the line is in the
+  //    opening if its distance to that line is at least RING_CLEAR.
+  function limitFor(h, y) {
+    var dt = (y - cy) - h, db = (y - cy) + h, R = 130 - SCREEN_MARGIN;
+    var screenBottom = Math.sqrt(R * R - db * db), screenTop = Math.sqrt(R * R - dt * dt);
+    var inner = RING_IN - RING_CLEAR;
+    var ringTop = Math.max(dt - RING_CLEAR * Math.SQRT2, dt < inner ? Math.sqrt(inner * inner - dt * dt) : 0);
+    var half = Math.min(screenBottom, screenTop, ringTop);
+    var by = half === screenBottom ? 'the screen edge at the bottom of the line' : (half === ringTop ? 'the ends of the rings' : 'the screen edge at the top of the line');
+    return { dt: dt, db: db, screenBottom: screenBottom, screenTop: screenTop, ringTop: ringTop, half: half, width: 2 * half, by: by };
+  }
+  function fit(R, y) {
+    var lim = limitFor(R.h, y);
+    var need = Math.max(cx - R.left, R.right - cx);
+    return { lim: lim, ink: 2 * need, over: need - lim.half > EPS, by: 2 * (need - lim.half) };
+  }
+
+  // The plan of both lines. Line 1 is at ROW_Y when line 2 is empty. With a line 2, the search starts with line 1 at ROW_Y and line 2 under it
+  // with LINE_GAP px of clear gap between the ink of the two lines. Line 1 moves up, one px at a time, until both lines fit, but never closer
+  // than EVENT_CLEAR px to the ink of the event line. If no position fits, the position with the smallest overshoot wins.
+  function plan(k, st) {
+    var R1 = rowLayout(k, st.lines[0], st), R2 = rowLayout(k, st.lines[1], st);
+    var has1 = R1.items.length > 0, two = R2.items.length > 0;
+    var d1 = ROW_Y, d2 = ROW_Y;
+    if (two && has1) {
+      var top = Math.ceil(EVENT_INK_BOTTOM + EVENT_CLEAR + R1.h - EPS), best = null, found = false;
+      for (var y = ROW_Y; y >= top && !found; y--) {
+        var yy = y + R1.h + R2.h + LINE_GAP, f1 = fit(R1, y), f2 = fit(R2, yy), sc = Math.max(f1.by, f2.by);
+        if (!f1.over && !f2.over) { best = { y: y, yy: yy }; found = true; }
+        else if (!best || sc < best.sc - EPS) { best = { y: y, yy: yy, sc: sc }; }
+      }
+      d1 = best.y; d2 = best.yy;
+    }
+    var y1 = st.y1 === null ? d1 : st.y1, y2 = st.y2 === null ? d2 : st.y2;
+    var P = { R: [R1, R2], y: [y1, y2], def: [d1, d2], F: [fit(R1, y1), fit(R2, y2)], two: two, has1: has1, gapLines: null, gapEvent: null };
+    if (two && has1) { P.gapLines = (y2 - R2.h) - (y1 + R1.h); }
+    if (has1) { P.gapEvent = (y1 - R1.h) - EVENT_INK_BOTTOM; }
+    else if (two) { P.gapEvent = (y2 - R2.h) - EVENT_INK_BOTTOM; }
+    return P;
+  }
+
+  // ---- State, with the address. lines[0] is line 1 and lines[1] is line 2. y1 and y2 are null (the computed default) or a y set by hand.
+  var state = { lines: [['notif', 'weather'], []], y1: null, y2: null, sub: noSub(), conn: true, dnd: true, limits: false, wrap: true };
+  function noSub() { return { hilo: false, rain: false, wind: false, pct: false }; }
+  function allIds(st) { return st.lines[0].concat(st.lines[1]); }
+  function phoneMode(st) {
+    var m = 'none';
+    allIds(st).forEach(function (id) { if (isPhone(id)) { m = id; } });
+    return m;
+  }
+  // A line 2 without a line 1 becomes line 1.
+  function normalize() {
+    if (!state.lines[0].length && state.lines[1].length) { state.lines = [state.lines[1], []]; state.y1 = state.y2; state.y2 = null; }
+  }
+
+  // The automatic wrap. The items keep their order (line 1, then line 2). If all of them fit on one line, there is one line. If not, line 1
+  // takes as many items as it can hold, in the two-line positions that plan() computes, and line 2 takes the rest. If line 2 cannot hold the
+  // rest, the rest stays on line 2 and the warning shows.
+  function autoWrap() {
+    var flat = allIds(state), n, fallback = 0, chosen = 0;
+    state.y1 = null; state.y2 = null;
+    function tryN(cut) {
+      return plan(measure, { lines: [flat.slice(0, cut), flat.slice(cut)], y1: null, y2: null, sub: state.sub, conn: state.conn, dnd: state.dnd });
+    }
+    if (flat.length > 1 && tryN(flat.length).F[0].over) {
+      for (n = flat.length - 1; n >= 1 && !chosen; n--) {
+        var P = tryN(n);
+        if (!P.F[0].over && !P.F[1].over) { chosen = n; }
+        else if (!P.F[0].over && !fallback) { fallback = n; }
+      }
+      state.lines = [flat.slice(0, chosen || fallback || 1), flat.slice(chosen || fallback || 1)];
+    } else {
+      state.lines = [flat, []];
+    }
+  }
+
+  var PRESETS = [
+    { name: 'Recommended', order: ['notif', 'weather', 'steps'], sub: { rain: true } },
+    { name: 'Sun and Hijri', order: ['weather', 'sun', 'hijri'], sub: {} },
+    { name: 'Current face', order: ['battery', 'phone', 'alarm', 'weather'], sub: {} },
+    { name: 'Minimal', order: ['dot', 'weather'], sub: {} },
+    { name: 'Two lines', order: ['weather', 'phone'], order2: ['sun'], sub: { hilo: true } }
+  ];
+
+  function lineText(ids, st) {
+    if (!ids.length) { return '(empty)'; }
+    return ids.map(function (id) {
+      var s = NAME[id];
+      if (id === 'notif') { s = 'Notifications'; }
+      if (id === 'lost') { s = 'Phone only when lost'; }
+      if (SUBS[id]) {
+        var on = SUBS[id].filter(function (f) { return st.sub[f]; }).map(function (f) { return SUB_SHORT[f]; });
+        if (on.length) { s += ' + ' + on.join(' + '); }
+      }
+      return s;
+    }).join(' · ');
+  }
+  function summaryText(st, P) {
+    if (!allIds(st).length) { return '(empty row)'; }
+    if (!st.lines[1].length) {
+      var t = lineText(st.lines[0], st);
+      return P.y[0] === ROW_Y ? t : 'Line 1 (y ' + P.y[0] + '): ' + t;
+    }
+    return 'Line 1 (y ' + P.y[0] + '): ' + lineText(st.lines[0], st) + ' | Line 2 (y ' + P.y[1] + '): ' + lineText(st.lines[1], st);
+  }
+
+  function tokens(ids, st) {
+    return ids.map(function (id) {
+      var flags = (SUBS[id] || []).filter(function (f) { return st.sub[f]; });
+      return [id].concat(flags).join('.');
+    }).join(',');
+  }
+  function serialize(st) {
+    var q;
+    if (st.wrap) { q = 's=' + tokens(allIds(st), st); }
+    else {
+      q = 's=' + tokens(st.lines[0], st);
+      if (st.lines[1].length) { q += '|' + tokens(st.lines[1], st); }
+      if (!st.lines[1].length && st.y1 === null) { q += '&w=0'; }
+    }
+    if (st.y1 !== null) { q += '&y1=' + st.y1; }
+    if (st.y2 !== null && st.lines[1].length) { q += '&y2=' + st.y2; }
+    if (!st.conn) { q += '&c=0'; }
+    if (!st.dnd) { q += '&d=0'; }
+    if (st.limits) { q += '&limits=1'; }
+    return '?' + q;
+  }
+
+  function parseY(v) {
+    if (v === null || !/^\d{1,3}$/.test(v)) { return null; }
+    var n = parseInt(v, 10);
+    return n >= 0 && n <= 259 ? n : null;
+  }
+  function parseQuery() {
+    var p = new URLSearchParams(location.search);
+    var manual = p.get('w') === '0' || (p.has('s') && p.get('s').indexOf('|') >= 0);
+    if (p.has('s')) {
+      state.lines = [[], []]; state.sub = noSub();
+      p.get('s').split('|').slice(0, 2).forEach(function (seg, li) {
+        seg.split(',').forEach(function (tok) {
+          var parts = tok.split('.'), id = parts[0];
+          if (!id || allIds(state).indexOf(id) >= 0) { return; }
+          if (!isPhone(id) && ITEM_IDS.indexOf(id) < 0) { return; }
+          if (isPhone(id) && phoneMode(state) !== 'none') { return; }
+          state.lines[li].push(id);
+          parts.slice(1).forEach(function (f) { if (f in state.sub) { state.sub[f] = true; } });
+        });
+      });
+    }
+    state.y1 = parseY(p.get('y1')); state.y2 = parseY(p.get('y2'));
+    state.conn = p.get('c') !== '0';
+    state.dnd = p.get('d') !== '0';
+    state.limits = p.get('limits') === '1';
+    if (state.y1 !== null || state.y2 !== null) { manual = true; }
+    state.wrap = !manual;
+    normalize();
+  }
+
+  // ---- Drawing.
+  function drawDial(ctx, L, P) {
+    var k = kit(ctx);
+    rings(k);
+    k.eventLine(EVENT_Y);
+    var t = L.top, y = L.yc;
+    D.hour.split('').forEach(function (d, i) { k.text(d, t.x + i * t.cell + t.cell / 2, y, L.hourSize, C.fg, 'center', 'time'); });
+    k.text(D.date, t.lx, y + LINE_DATE, XT, C.dim);
+    k.prayerName(ARABIC, t.lx, y + LINE_PRAYER, C.dim);
+    k.text(PRAYER.time, t.lx, y + LINE_TIME, XT, C.fg);
+    if (L.minSize) { k.text(D.minute, cx, L.minY, L.minSize, C.accent, 'center', 'time'); }
+    drawRow(k, P.R[0], P.y[0]);
+    drawRow(k, P.R[1], P.y[1]);
+    // A line that is too wide gets a red box, so the reason is visible next to the drawing.
+    [0, 1].forEach(function (i) {
+      var R = P.R[i];
+      if (!R.items.length || !P.F[i].over) { return; }
+      ctx.strokeStyle = '#FF0055'; ctx.lineWidth = 1.5;
+      ctx.strokeRect(R.left - 3, P.y[i] - R.h - 3, R.right - R.left + 6, 2 * R.h + 6);
+    });
+  }
+
+  function drawLimits(ctx, P) {
+    ctx.lineWidth = 0.5;
+    ctx.strokeStyle = '#55FF00'; ctx.beginPath(); ctx.arc(cx, cy, 130 - SCREEN_MARGIN, 0, Math.PI * 2); ctx.stroke();
+    // The ends of the rings: two radial lines at 45 degrees from the bottom.
+    ctx.strokeStyle = '#FF0055';
+    [-1, 1].forEach(function (s) {
+      ctx.beginPath(); ctx.moveTo(cx + s * RING_IN * Math.SQRT1_2, cy + RING_IN * Math.SQRT1_2);
+      ctx.lineTo(cx + s * RING_OUT * Math.SQRT1_2, cy + RING_OUT * Math.SQRT1_2); ctx.stroke();
+    });
+    // For each line: the box that it may fill, and the box that it fills.
+    [0, 1].forEach(function (i) {
+      var R = P.R[i], F = P.F[i], half = F.lim.half;
+      if (i === 1 && !R.items.length) { return; }
+      ctx.strokeStyle = '#FF55FF';
+      ctx.strokeRect(cx - half, cy + F.lim.dt, 2 * half, F.lim.db - F.lim.dt);
+      if (R.items.length) {
+        ctx.strokeStyle = '#FFFF55';
+        ctx.strokeRect(R.left, cy + F.lim.dt, R.right - R.left, F.lim.db - F.lim.dt);
+      }
+    });
+  }
+
+  var CANVAS_Q = 2;
+  // Draws region rg of the dial into a canvas of css size cssW x cssH. bezel adds the bezel around the screen.
+  function paint(canvas, cssW, cssH, rg, q, bezel, L, P) {
+    var dpr = Math.max(1, window.devicePixelRatio || 1);
+    var ctx = canvas.getContext('2d');
+    canvas.width = Math.round(cssW * dpr * q); canvas.height = Math.round(cssH * dpr * q);
+    var s = canvas.width / rg.w;
+    ctx.setTransform(s, 0, 0, s, -rg.x * s, -rg.y * s);
+    ctx.clearRect(rg.x, rg.y, rg.w, rg.h);
+    if (bezel) {
+      ctx.fillStyle = '#23272e'; ctx.beginPath(); ctx.arc(150, 150, 149, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#444b56'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(150, 150, 148, 0, Math.PI * 2); ctx.stroke();
+      ctx.translate(20, 20);
+    }
+    ctx.save();
+    ctx.beginPath(); ctx.arc(130, 130, 130, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, 260, 260);
+    drawDial(ctx, L, P);
+    if (state.limits) { drawLimits(ctx, P); }
+    ctx.restore();
+  }
+
+  // ---- The page.
+  function el(id) { return document.getElementById(id); }
+  var big = el('big'), zoom = el('zoom'), real = el('real');
+  var measure = kit(document.createElement('canvas').getContext('2d'));
+  function f1(n) { return (Math.round(n * 10) / 10).toFixed(1); }
+
+  function applyPreset(p) {
+    state.lines = [p.order.concat(p.order2 || []), []];
+    state.y1 = null; state.y2 = null; state.wrap = true;
+    state.sub = noSub();
+    Object.keys(p.sub).forEach(function (f) { state.sub[f] = p.sub[f]; });
+    render();
+  }
+
+  function setPhone(mode) {
+    var l = -1, i = -1;
+    state.lines.forEach(function (ids, n) { ids.forEach(function (id, m) { if (isPhone(id)) { l = n; i = m; } }); });
+    if (mode === 'none') { if (i >= 0) { state.lines[l].splice(i, 1); } }
+    else if (i >= 0) { state.lines[l][i] = mode; }
+    else { state.lines[0].unshift(mode); }
+    render();
+  }
+
+  function toggleItem(id, on) {
+    var l = state.lines[0].indexOf(id) >= 0 ? 0 : (state.lines[1].indexOf(id) >= 0 ? 1 : -1);
+    if (on && l < 0) { state.lines[state.wrap && state.lines[1].length ? 1 : 0].push(id); }
+    if (!on && l >= 0) { state.lines[l].splice(state.lines[l].indexOf(id), 1); }
+    render();
+  }
+
+  function move(l, i, d) {
+    // With the automatic wrap, the order is one list over both lines, and the wrap splits it again.
+    var ids = state.wrap ? allIds(state) : state.lines[l], j = i + d;
+    if (state.wrap) { i += l ? state.lines[0].length : 0; j = i + d; }
+    if (j < 0 || j >= ids.length) { return; }
+    var t = ids[i]; ids[i] = ids[j]; ids[j] = t;
+    if (state.wrap) { state.lines = [ids, []]; }
+    render();
+  }
+
+  function moveLine(l, i, to) {
+    if (to === l) { return; }
+    var id = state.lines[l].splice(i, 1)[0];
+    state.lines[to].push(id);
+    render();
+  }
+
+  // A small preview of one item on a black canvas.
+  function preview(canvas, id, st) {
+    var dpr = Math.max(1, window.devicePixelRatio || 1), ctx = canvas.getContext('2d');
+    canvas.width = Math.round(110 * dpr * 2); canvas.height = Math.round(24 * dpr * 2);
+    ctx.setTransform(canvas.width / 110, 0, 0, canvas.height / 24, 0, 0);
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, 110, 24);
+    var k = kit(ctx), it = build(k, id, st);
+    if (it) { it.draw(k, 6, 12); }
+    else { k.text('nothing', 6, 12, 12, C.track); }
+  }
+
+  var previews = [];
+  function buildControls() {
+    var presets = el('presets');
+    PRESETS.forEach(function (p) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'preset'; b.textContent = p.name;
+      b.addEventListener('click', function () { applyPreset(p); });
+      presets.appendChild(b);
+    });
+
+    var phone = el('phoneOpts');
+    var phoneRows = [['phone', 'Phone icon (the current one)'], ['bt', 'A. Bluetooth symbol'], ['lost', 'B. Only when lost'], ['notif', 'C. Notifications'], ['dot', 'D. Small dot'], ['none', 'None']];
+    phoneRows.forEach(function (r) {
+      var lab = document.createElement('label'); lab.className = 'opt';
+      var inp = document.createElement('input'); inp.type = 'radio'; inp.name = 'phone'; inp.value = r[0];
+      inp.addEventListener('change', function () { setPhone(r[0]); });
+      var cv = document.createElement('canvas');
+      var nm = document.createElement('span'); nm.className = 'name'; nm.innerHTML = r[1] + '<br><span class="val">' + PHONE_NOTE[r[0]] + '</span>';
+      lab.appendChild(inp); lab.appendChild(cv); lab.appendChild(nm);
+      if (r[0] === 'none') { cv.style.visibility = 'hidden'; }
+      phone.appendChild(lab);
+      previews.push({ cv: cv, id: r[0], kind: 'phone' });
+    });
+
+    var items = el('itemOpts');
+    ITEM_IDS.forEach(function (id) {
+      var lab = document.createElement('label'); lab.className = 'opt'; lab.dataset.item = id;
+      var inp = document.createElement('input'); inp.type = 'checkbox'; inp.dataset.item = id;
+      inp.addEventListener('change', function () { toggleItem(id, inp.checked); });
+      var cv = document.createElement('canvas');
+      var nm = document.createElement('span'); nm.className = 'name';
+      nm.innerHTML = NAME[id] + (SAMPLE[id] ? ' <span class="val">' + SAMPLE[id] + '</span>' : '') +
+        (id === 'dnd' ? '<br><span class="val">shows only when the mode is on</span>' : '');
+      lab.appendChild(inp); lab.appendChild(cv); lab.appendChild(nm);
+      items.appendChild(lab);
+      previews.push({ cv: cv, id: id, kind: 'item' });
+      (SUBS[id] || []).forEach(function (f) {
+        var sl = document.createElement('label'); sl.className = 'opt sub'; sl.dataset.parent = id;
+        var si = document.createElement('input'); si.type = 'checkbox'; si.dataset.sub = f;
+        si.addEventListener('change', function () { state.sub[f] = si.checked; render(); });
+        var sn = document.createElement('span'); sn.className = 'name';
+        var sample = { hilo: '↑ 21  ↓ 9', rain: '40%', wind: '12 km/h', pct: '62%' }[f];
+        sn.innerHTML = SUB_LABEL[f] + ' <span class="val">' + sample + '</span>';
+        sl.appendChild(si); sl.appendChild(sn);
+        items.appendChild(sl);
+      });
+    });
+
+    el('conn').addEventListener('change', function (e) { state.conn = e.target.checked; render(); });
+    el('dnd').addEventListener('change', function (e) { state.dnd = e.target.checked; render(); });
+    el('wrap').addEventListener('change', function (e) {
+      state.wrap = e.target.checked;
+      if (state.wrap) { state.y1 = null; state.y2 = null; }
+      render();
+    });
+    el('limits').addEventListener('change', function (e) { state.limits = e.target.checked; render(); });
+    el('copy').addEventListener('click', function () {
+      var text = summaryText(state, plan(measure, state)), b = el('copy');
+      function done() { b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy'; }, 1200); }
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(done, fallback); } else { fallback(); }
+      function fallback() {
+        var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); done(); } catch (e) { b.textContent = 'Copy failed'; }
+        document.body.removeChild(ta);
+      }
+    });
+    el('order').addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (!b) { return; }
+      var l = parseInt(b.dataset.l, 10), i = parseInt(b.dataset.i, 10);
+      if (b.dataset.d === 'line') { state.wrap = false; moveLine(l, i, parseInt(b.dataset.to, 10)); }
+      else { move(l, i, b.dataset.d === 'up' ? -1 : 1); }
+    });
+    ['y1', 'y2'].forEach(function (key) {
+      el(key).addEventListener('input', function (e) {
+        var v = parseInt(e.target.value, 10);
+        if (isNaN(v)) { return; }
+        state[key] = Math.max(0, Math.min(259, v));
+        state.wrap = false;
+        render();
+      });
+    });
+    el('resetPos').addEventListener('click', function () { state.y1 = null; state.y2 = null; render(); });
+  }
+
+  function syncControls(P) {
+    var mode = phoneMode(state);
+    Array.prototype.forEach.call(document.querySelectorAll('input[name=phone]'), function (i) { i.checked = (i.value === mode); });
+    Array.prototype.forEach.call(document.querySelectorAll('input[data-item]'), function (i) { i.checked = allIds(state).indexOf(i.dataset.item) >= 0; });
+    Array.prototype.forEach.call(document.querySelectorAll('input[data-sub]'), function (i) {
+      var parent = i.closest('label').dataset.parent, on = allIds(state).indexOf(parent) >= 0;
+      i.checked = state.sub[i.dataset.sub]; i.disabled = !on; i.closest('label').classList.toggle('disabled', !on);
+    });
+    el('conn').checked = state.conn; el('dnd').checked = state.dnd; el('limits').checked = state.limits; el('wrap').checked = state.wrap;
+    [['y1', 0, state.y1, true], ['y2', 1, state.y2, P.two]].forEach(function (c) {
+      var inp = el(c[0]);
+      if (document.activeElement !== inp) { inp.value = P.y[c[1]]; }
+      inp.disabled = !c[3];
+      inp.classList.toggle('manual', c[2] !== null && c[3]);
+    });
+    var noOpt = noSub();
+    previews.forEach(function (p) {
+      preview(p.cv, p.id, { conn: state.conn, dnd: true, sub: noOpt });
+    });
+  }
+
+  var L0 = null;
+  function mm(n) { return Math.abs(Math.round(n * 10) / 10).toFixed(1); }
+  function fitRows(label, R, y, F) {
+    return tr(label + 'Row width (ink)', Math.round(F.ink) + ' px') +
+      tr(label + 'Width limit', f1(F.lim.width) + ' px') +
+      tr(label + 'Limit set by', F.lim.by) +
+      tr(label + 'Row height (ink)', (2 * R.h) + ' px, y ' + (y - R.h) + ' to ' + (y + R.h)) +
+      tr(label + 'Half limit at the bottom corner (screen)', f1(F.lim.screenBottom) + ' px') +
+      tr(label + 'Half limit at the top corner (screen)', f1(F.lim.screenTop) + ' px') +
+      tr(label + 'Half limit at the top corner (rings)', f1(F.lim.ringTop) + ' px');
+  }
+  function statusDiv(cls, text) { return '<div class="status ' + cls + '">' + text + '</div>'; }
+
+  function render() {
+    normalize();
+    if (state.wrap) { autoWrap(); }
+    var L = layout(measure, HOUR_SIZE);
+    var P = plan(measure, state);
+    L0 = L;
+    syncControls(P);
+    var zr = P.two ? { x: 40, y: 200, w: 180, h: Math.min(60, Math.ceil(P.y[1] + P.R[1].h + 4) - 200) } : { x: 40, y: 204, w: 180, h: 46 };
+    zoom.style.aspectRatio = zr.w + ' / ' + zr.h;
+    paint(big, 600, 600, { x: 0, y: 0, w: 300, h: 300 }, 2, true, L, P);
+    paint(zoom, 600, 600 * zr.h / zr.w, zr, 1.5, false, L, P);
+    paint(real, 260, 260, { x: 0, y: 0, w: 260, h: 260 }, 1, false, L, P);
+
+    // The fit of each line, and the gaps.
+    var out = '', two = P.two, rows = '', bad = '';
+    function sd(cls, text) { var h = statusDiv(cls, text); if (cls === 'over') { bad += h; } return h; }
+    [0, 1].forEach(function (i) {
+      var R = P.R[i], F = P.F[i], label = two ? 'Line ' + (i + 1) + ': ' : '';
+      if (i === 1 && !two) { return; }
+      if (F.over) {
+        out += sd('over', label + 'TOO WIDE: the ' + (two ? 'line' : 'row') + ' is ' + Math.round(F.ink) + ' px and the limit is ' + f1(F.lim.width) + ' px. It is ' + f1(F.by) + ' px too wide. ' +
+          (two ? 'Remove an item, or move one to the other line.' : 'Remove an item or a sub-option.'));
+      } else if (!R.items.length) {
+        out += sd('ok', label + 'The row is empty.');
+      } else {
+        out += sd('ok', label + 'The ' + (two ? 'line' : 'row') + ' fits: ' + Math.round(F.ink) + ' px of ' + f1(F.lim.width) + ' px (' + f1(F.lim.width - F.ink) + ' px to spare).');
+      }
+    });
+    if (P.gapLines !== null) {
+      if (P.gapLines < 0) {
+        out += sd('over', 'LINES OVERLAP: the ink of line 1 and line 2 overlaps by ' + mm(P.gapLines) + ' px (line 1 at y ' + P.y[0] + ', line 2 at y ' + P.y[1] + '). Move line 2 down or line 1 up.');
+      } else if (P.gapLines < LINE_GAP) {
+        out += sd('over', 'LINES TOO CLOSE: the clear gap between line 1 and line 2 is ' + mm(P.gapLines) + ' px. It must be at least ' + LINE_GAP + ' px.');
+      }
+    }
+    if (P.gapEvent !== null) {
+      var who = two && P.has1 ? 'line 1' : (two ? 'line 2' : 'the row');
+      if (P.gapEvent < 0) {
+        out += sd('over', 'EVENT LINE OVERLAP: the ink of ' + who + ' overlaps the event line by ' + mm(P.gapEvent) + ' px. Move it down.');
+      } else if (P.gapEvent < EVENT_CLEAR) {
+        out += sd('over', 'TOO CLOSE TO THE EVENT LINE: the clear gap between ' + who + ' and the event line is ' + mm(P.gapEvent) + ' px. It must be at least ' + EVENT_CLEAR + ' px.');
+      }
+    }
+    if (two && P.gapLines !== null && P.gapLines >= LINE_GAP && P.gapEvent >= EVENT_CLEAR) {
+      out += sd('ok', 'Clear gaps: ' + mm(P.gapEvent) + ' px between the event line and line 1, ' + mm(P.gapLines) + ' px between line 1 and line 2.');
+    }
+    el('status').innerHTML = out;
+    el('dialWarn').innerHTML = bad + (P.F[0].over || (P.two && P.F[1].over) ? '<p class="note over-text">The red box on the dial marks the line that is too wide.</p>' : '');
+    el('wrapNote').textContent = state.wrap ? 'On: the page fills line 1 up to its width limit and puts the other items on line 2. The arrows change the order. A line button or a y field switches it off.' :
+      'Off: your line choice stays. Switch it on to let the page wrap the items again.';
+
+    rows = two ? fitRows('Line 1: ', P.R[0], P.y[0], P.F[0]) + fitRows('Line 2: ', P.R[1], P.y[1], P.F[1]) : fitRows('', P.R[0], P.y[0], P.F[0]);
+    if (P.gapEvent !== null) { rows += tr('Clear gap, event line to ' + (two && P.has1 ? 'line 1' : (two ? 'line 2' : 'the row')), mm(P.gapEvent) + ' px'); }
+    if (P.gapLines !== null) { rows += tr('Clear gap, line 1 to line 2', mm(P.gapLines) + ' px'); }
+    el('fit').innerHTML = rows;
+    el('summary').textContent = summaryText(state, P);
+
+    var html = '';
+    [0, 1].forEach(function (l) {
+      var ids = state.lines[l];
+      html += '<li class="grp">Line ' + (l + 1) + (ids.length ? ' (y ' + P.y[l] + ')' : '') + '</li>';
+      if (!ids.length) { html += '<li class="empty">' + (l ? 'Empty. Use the To line 2 button of an item to move it here.' : 'No item is selected.') + '</li>'; }
+      ids.forEach(function (id, i) {
+        var it = build(measure, id, state);
+        html += '<li><span class="n">' + (i + 1) + '</span><span class="t">' + (id === 'notif' || isPhone(id) ? 'Phone: ' : '') + summaryOne(id) + '</span>' +
+          '<span class="w">' + (it ? it.w + ' px' : 'draws nothing') + '</span>' +
+          '<button class="lineBtn" type="button" data-l="' + l + '" data-i="' + i + '" data-d="line" data-to="' + (1 - l) + '">' + (l === 0 ? 'To line 2 &#8595;' : 'To line 1 &#8593;') + '</button>' +
+          '<button class="sm" type="button" data-l="' + l + '" data-i="' + i + '" data-d="up" aria-label="Move up"' + ((state.wrap ? (l === 0 && i === 0) : i === 0) ? ' disabled' : '') + '>&#9650;</button>' +
+          '<button class="sm" type="button" data-l="' + l + '" data-i="' + i + '" data-d="down" aria-label="Move down"' + ((state.wrap ? (l === (state.lines[1].length ? 1 : 0) && i === ids.length - 1) : i === ids.length - 1) ? ' disabled' : '') + '>&#9660;</button></li>';
+      });
+    });
+    el('order').innerHTML = html;
+
+    el('posNote').textContent = 'Line y is the center of the line. Computed defaults: line 1 at y ' + P.def[0] + (P.two ? ', line 2 at y ' + P.def[1] : '') +
+      '. With two lines, line 2 is placed with at least ' + LINE_GAP + ' px of clear gap under line 1, and line 1 keeps at least ' + EVENT_CLEAR + ' px of clear gap to the event line (ink down to y ' + EVENT_INK_BOTTOM + '). ' +
+      'A field with a blue border holds a y that you set. Reset positions returns both lines to the computed defaults.';
+
+    var ph = '<tr><th>Preset</th><th>Width</th><th>Limit</th></tr>';
+    PRESETS.forEach(function (p) {
+      var st = { lines: [p.order, p.order2 || []], sub: Object.assign(noSub(), p.sub), conn: true, dnd: true, y1: null, y2: null };
+      var pp = plan(measure, st), n = pp.two ? 2 : 1;
+      var over = pp.F[0].over || (pp.two && pp.F[1].over);
+      var w = [], lim = [];
+      for (var i = 0; i < n; i++) { w.push(Math.round(pp.F[i].ink)); lim.push(f1(pp.F[i].lim.width)); }
+      ph += '<tr><td>' + p.name + '</td><td class="' + (over ? 'over-text' : 'ok-text') + '">' + w.join(' + ') + ' px' + (over ? ' (too wide)' : '') +
+        '</td><td>' + lim.join(' + ') + ' px</td></tr>';
+    });
+    el('presetTable').innerHTML = ph;
+
+    el('geometry').textContent = 'The limit. The screen has radius 130. A line stays 6 px inside it, so its corners stay inside a circle of radius 124 around the center of the dial. ' +
+      'A single line is centered at y ' + ROW_Y + ' (92 px under the center). With a second line, each line has its own box and its own limit: line 1 at the y that the page computes, line 2 under it. The bottom corners bind: at the ink height of the tallest item, the circle of radius 124 gives the half width sqrt(124^2 - dy^2). ' +
+      'The three open rings (radii 125, 117 and 109, width 6) fill the band from radius 106 to 128 and stop on two radial lines at 45 degrees from the bottom. ' +
+      'The top corners of a line stay at least ' + RING_CLEAR + ' px from those lines, so they are in the opening. This limit is wider than the screen limit. ' +
+      'The face: ' + (L.minSize ? 'hour ' + L.hourSize + ' at y ' + L.yc + ', minutes ' + L.minSize + ' at y ' + L.minY : 'no minutes size fits') + '.';
+
+    if (history.replaceState) {
+      try { history.replaceState(null, '', serialize(state)); } catch (e) { /* the address stays as it is */ }
+    }
+  }
+
+  function summaryOne(id) { return lineText([id], state); }
+  function tr(a, b) { return '<tr><td>' + a + '</td><td>' + b + '</td></tr>'; }
+
+  parseQuery();
+  buildControls();
+  render();
+  if (document.fonts && document.fonts.load) {
+    Promise.all([
+      document.fonts.load('900 80px Roboto', '0123456789'),
+      document.fonts.load('700 16px "Roboto Condensed"', 'TUE 10 NOV 20 JUM I 12 km/h'),
+      document.fonts.load('700 15px "Noto Kufi Arabic"', ARABIC)
+    ]).then(render, function () {});
+  }
+})();
+</script>
+</body>
+</html>

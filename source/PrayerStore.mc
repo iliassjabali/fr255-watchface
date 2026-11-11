@@ -28,12 +28,17 @@ module PrayerStore {
         return null;
     }
 
-    // The official Fajr of tomorrow, or null if the service did not send it.
-    function fajrTomorrow(data, todayText as String) as Number? {
+    // The official times of tomorrow, or null if the service did not send them.
+    function tomorrow(data, todayText as String) as Array<Number>? {
         if (!(data instanceof Dictionary) || !todayText.equals(data["date"])) {
             return null;
         }
-        var times = row(data, "tomorrow");
+        return row(data, "tomorrow");
+    }
+
+    // The official Fajr of tomorrow, or null if the service did not send it.
+    function fajrTomorrow(data, todayText as String) as Number? {
+        var times = tomorrow(data, todayText);
         return (times != null) ? times[0] : null;
     }
 

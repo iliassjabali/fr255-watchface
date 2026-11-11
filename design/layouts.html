@@ -165,6 +165,31 @@
       });
     };
 
+    // Icons of the two-line status area of the current face. They are drawn from the left edge x, centered on y.
+    // The dot is 10 pixels wide: a filled disc when the phone is connected, a gray ring when it is not.
+    k.dotIcon = function (x, y, color, filled) {
+      if (filled) { k.disc(x + 5, y, 5, color); }
+      else { ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x + 5, y, 4, 0, Math.PI * 2); ctx.stroke(); }
+    };
+    k.arrowUp = function (x, y, color) {
+      k.poly([[x + 3, y - 5], [x + 6, y - 1], [x, y - 1]], color); k.rect(x + 2, y - 1, 2, 6, color);
+    };
+    k.arrowDown = function (x, y, color) {
+      k.poly([[x + 3, y + 5], [x + 6, y + 1], [x, y + 1]], color); k.rect(x + 2, y - 5, 2, 6, color);
+    };
+    // The sunset and the sunrise: an arrow above a half disc on the horizon, 16 pixels wide.
+    // The sunset arrow points down, the sunrise arrow points up.
+    k.sunset = function (x, y) {
+      k.poly([[x + 4, y - 4], [x + 12, y - 4], [x + 8, y]], ORANGE); k.rect(x + 7, y - 8, 2, 5, ORANGE);
+      ctx.fillStyle = C.sun; ctx.beginPath(); ctx.arc(x + 8, y + 7, 5, Math.PI, 0); ctx.fill();
+      k.rect(x, y + 7, 16, 2, C.dim);
+    };
+    k.sunrise = function (x, y) {
+      k.poly([[x + 4, y - 1], [x + 12, y - 1], [x + 8, y - 5]], ORANGE); k.rect(x + 7, y - 2, 2, 5, ORANGE);
+      ctx.fillStyle = C.sun; ctx.beginPath(); ctx.arc(x + 8, y + 7, 5, Math.PI, 0); ctx.fill();
+      k.rect(x, y + 7, 16, 2, C.dim);
+    };
+
     // Blocks
     k.ticks = function () {
       var lit = Math.min(60, Math.floor((60 * D.steps) / D.goal));
@@ -860,6 +885,35 @@
     parts.forEach(function (p) { p.draw(x, y); x += p.w + gap; });
   }
 
+  // The status area of the current face: two lines, each centered on x 130.
+  // Line 1 (y 221): the phone dot, then the weather with the high and the low. The parts are 8 pixels apart.
+  // Line 2 (y 241): the next sunrise or sunset, with its time.
+  function statusLines(k) {
+    var RAIN = '#55AAFF', gap = 8, y1 = 221, y2 = 241, temp = '18°', hi = '21', lo = '9', when = '17:32';
+    function txt(str) { return { w: Math.ceil(k.width(str, XT)), draw: function (x, y, c) { k.text(str, x, y, XT, c || C.fg); } }; }
+    function row(parts, y) {
+      var total = 0;
+      parts.forEach(function (p, i) { total += (i ? p.gb : 0) + p.w; });
+      var x = Math.floor(cx - total / 2);
+      parts.forEach(function (p, i) { if (i) { x += p.gb; } p.draw(x, y); x += p.w; });
+    }
+    function part(w, gb, draw) { return { w: w, gb: gb, draw: draw }; }
+    function t(str, gb) { var o = txt(str); return part(o.w, gb, function (x, y) { o.draw(x, y); }); }
+    // The weather is one item of line 1: its inner gaps are 5, 7, 2, 5 and 2 pixels.
+    var weather = [
+      part(18, 0, function (x, y) { k.sun(x + 9, y); }), t(temp, 5),
+      part(6, 7, function (x, y) { k.arrowUp(x, y, ORANGE); }), t(hi, 2),
+      part(6, 5, function (x, y) { k.arrowDown(x, y, RAIN); }), t(lo, 2)
+    ];
+    var wTotal = 0;
+    weather.forEach(function (p, i) { wTotal += (i ? p.gb : 0) + p.w; });
+    var item = part(wTotal, gap, function (x, y) {
+      weather.forEach(function (p, i) { if (i) { x += p.gb; } p.draw(x, y); x += p.w; });
+    });
+    row([part(10, 0, function (x, y) { k.dotIcon(x, y, C.accent, true); }), item], y1);
+    row([part(16, 0, function (x, y) { k.sunset(x, y); }), t(when, 4)], y2);
+  }
+
   var PRAYERS = {
     title: 'Prayer time',
     note: 'The current watch face, with the next prayer added. The times on this page are examples. At 10:50 the next prayer is Dhuhr at 13:15.',
@@ -904,10 +958,10 @@
           var p = parts(k); line(k, 222, [p.battery, p.phone, p.weather], 10);
         } },
       { code: 'P7', name: 'Current face',
-        note: 'The face as the watch draws it now. The hour is large and has three short lines at its right: the day, the prayer name in Arabic and the prayer time. The status row has the battery with its days, the phone, an alarm bell and the weather.',
+        note: 'The face as the watch draws it now. The hour is large and has three short lines at its right: the day, the prayer name in Arabic and the prayer time. The status area has two lines. Line 1 has a dot for the phone connection and the weather with the high and the low. Line 2 has the next sunrise or sunset.',
         draw: function (k) {
           m1(k, { rings: 'open', top: 'none', minuteSize: 94, minuteY: 142 }); k.eventLine(196);
-          topRow(k, cy - 52); statusRow(k, cy + 92);
+          topRow(k, cy - 52); statusLines(k);
         } }
     ]
   };
