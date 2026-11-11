@@ -89,3 +89,11 @@ browser.
 
 Copy `bin/fr255-watchface.prg` to the `GARMIN/APPS` folder of the watch. The
 Forerunner 255 uses MTP, thus macOS needs an MTP tool such as OpenMTP.
+
+With OpenMTP installed, this script does the copy:
+
+```bash
+python3 tools/push_to_watch.py
+```
+
+Close OpenMTP and Garmin Express first.
