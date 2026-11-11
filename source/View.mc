@@ -12,9 +12,10 @@ import Toybox.Weather;
 
 // Layout: the minutes fill the center, and three open rings go around them.
 // - Rings, from the edge to the center: heart rate, Body Battery, stress.
-// - Top: the hour, small, with the date and the next prayer.
-// - Opening at the bottom: the next calendar event, then the battery, the
-//   phone and the weather.
+// - Top: the hour, with the date and the next prayer at its right. The prayer
+//   name is in Arabic.
+// - Opening at the bottom: the next calendar event, then the battery with the
+//   days that remain, the phone, a bell when an alarm is set, and the weather.
 class FaceView extends WatchUi.WatchFace {
 
     // Palette, from the 64 colors of the Forerunner 255 display.
@@ -30,6 +31,7 @@ class FaceView extends WatchUi.WatchFace {
 
     private var _minuteFont as FontResource?;
     private var _hourFont as FontResource?;
+    private var _prayerFont as FontResource?;
     private var _nextEvent as String?;
     private var _bodyBattery as Number?;
     private var _stress as Number?;
@@ -48,6 +50,7 @@ class FaceView extends WatchUi.WatchFace {
     function onLayout(dc as Dc) as Void {
         _minuteFont = WatchUi.loadResource(Rez.Fonts.Minutes) as FontResource;
         _hourFont = WatchUi.loadResource(Rez.Fonts.Hour) as FontResource;
+        _prayerFont = WatchUi.loadResource(Rez.Fonts.Prayer) as FontResource;
     }
 
     function onShow() as Void {
@@ -132,7 +135,7 @@ class FaceView extends WatchUi.WatchFace {
                 hour = 12;
             }
         }
-        drawTop(dc, cx, cy - 63, hour.format("%02d"), _prayers.current(clock));
+        drawTop(dc, cx, cy - 61, hour.format("%02d"), _prayers.current(clock));
 
         var minuteFont = _minuteFont;
         if (minuteFont != null) {
@@ -157,19 +160,27 @@ class FaceView extends WatchUi.WatchFace {
         dc.setPenWidth(1);
     }
 
-    // The hour, with the date and the next prayer at its right.
-    // The hour and the date are centered as one group. The prayer starts
-    // below the date and can be longer than the date.
+    // The hour, with a column of short lines at its right: the day, the name
+    // of the next prayer and its time. The hour and the column are centered
+    // as one group. The prayer name is one glyph of the Prayer font.
     private function drawTop(dc as Dc, cx as Number, y as Number, hourText as String, prayer as Array<String>?) as Void {
         var font = Graphics.FONT_XTINY;
         var left = Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER;
         var today = Gregorian.info(Time.now(), Time.FORMAT_MEDIUM);
-        var dateText = Lang.format("$1$ $2$ $3$", [today.day_of_week, today.day, today.month]).toUpper();
+        var dateText = Lang.format("$1$ $2$", [today.day_of_week, today.day]).toUpper();
 
         var hourFont = _hourFont;
+        var prayerFont = _prayerFont;
         var hourWidth = (hourFont != null) ? dc.getTextWidthInPixels(hourText, hourFont) : 0;
+        var widths = [dc.getTextWidthInPixels(dateText, font)] as Array<Number>;
+        if (prayer != null) {
+            if (prayerFont != null) {
+                widths.add(dc.getTextWidthInPixels(prayer[0], prayerFont));
+            }
+            widths.add(dc.getTextWidthInPixels(prayer[1], font));
+        }
         var gap = 8;
-        var x = cx - (hourWidth + gap + dc.getTextWidthInPixels(dateText, font)) / 2;
+        var x = TopRow.left(cx, hourWidth, gap, TopRow.columnWidth(widths));
 
         if (hourFont != null) {
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
@@ -178,13 +189,16 @@ class FaceView extends WatchUi.WatchFace {
         x += hourWidth + gap;
 
         dc.setColor(COLOR_DIM, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(x, y - 7, font, dateText, left);
-
-        if (prayer != null) {
-            dc.drawText(x, y + 11, font, prayer[0], left);
-            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(x + dc.getTextWidthInPixels(prayer[0], font) + 5, y + 11, font, prayer[1], left);
+        if (prayer == null) {
+            dc.drawText(x, y, font, dateText, left);
+            return;
         }
+        dc.drawText(x, y - 19, font, dateText, left);
+        if (prayerFont != null) {
+            dc.drawText(x, y - 3, prayerFont, prayer[0], left);
+        }
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(x, y + 13, font, prayer[1], left);
     }
 
     // Sun for clear weather, cloud with drops for rain and snow, cloud for all other conditions.
@@ -258,43 +272,61 @@ class FaceView extends WatchUi.WatchFace {
         }
     }
 
-    // The watch battery, the phone connection and the weather, centered as one
-    // group in the opening of the rings.
+    // The watch battery, the phone connection, the alarm and the weather,
+    // centered as one group in the opening of the rings.
     private function drawStatusRow(dc as Dc, cx as Number, y as Number) as Void {
         var font = Graphics.FONT_XTINY;
-        var gap = 10;
-        var batteryWidth = 27;
+        var gap = 8;
+        var bodyWidth = 19;
+        var textGap = 4;
         var phoneWidth = 11;
+        var bellWidth = 14;
         var iconWidth = 18;
+
+        var settings = System.getDeviceSettings();
+        var hasAlarm = StatusRow.hasAlarm(settings.alarmCount);
 
         var conditions = Weather.getCurrentConditions();
         var temperature = (conditions != null) ? conditions.temperature : null;
         var tempText = null;
         if (conditions != null && temperature != null) {
-            if (System.getDeviceSettings().temperatureUnits == System.UNIT_STATUTE) {
+            if (settings.temperatureUnits == System.UNIT_STATUTE) {
                 temperature = (temperature * 9) / 5 + 32;
             }
             tempText = temperature.format("%d") + "°";
         }
 
-        var total = batteryWidth + gap + phoneWidth;
-        if (tempText != null) {
-            total += gap + iconWidth + 5 + dc.getTextWidthInPixels(tempText, font);
-        }
-        var x = cx - total / 2;
+        var stats = System.getSystemStats();
+        var percent = StatusRow.percent(stats.battery);
+        var daysText = StatusRow.daysText((stats has :batteryInDays) ? stats.batteryInDays : null, percent);
+        var batteryWidth = bodyWidth + 3 + textGap + dc.getTextWidthInPixels(daysText, font);
 
-        // Battery
-        var battery = System.getSystemStats().battery;
+        var parts = [batteryWidth, phoneWidth] as Array<Number>;
+        if (hasAlarm) {
+            parts.add(bellWidth);
+        }
+        if (tempText != null) {
+            parts.add(iconWidth + 5 + dc.getTextWidthInPixels(tempText, font));
+        }
+        var x = cx - StatusRow.width(parts, gap) / 2;
+
+        // Battery: a small icon with the level bar, then the days that remain.
+        var batteryColor = StatusRow.isLow(percent) ? COLOR_HEART : Graphics.COLOR_WHITE;
         dc.setPenWidth(1);
         dc.setColor(COLOR_DIM, Graphics.COLOR_TRANSPARENT);
-        dc.drawRectangle(x, y - 6, 24, 13);
-        dc.fillRectangle(x + 24, y - 2, 3, 5);
-        dc.setColor((battery > 20) ? Graphics.COLOR_WHITE : COLOR_HEART, Graphics.COLOR_TRANSPARENT);
-        dc.fillRectangle(x + 2, y - 4, ((20 * battery) / 100).toNumber(), 9);
+        dc.drawRectangle(x, y - 5, bodyWidth, 11);
+        dc.fillRectangle(x + bodyWidth, y - 2, 3, 5);
+        dc.setColor(batteryColor, Graphics.COLOR_TRANSPARENT);
+        var fill = StatusRow.fillWidth(percent, bodyWidth - 4);
+        if (fill > 0) {
+            dc.fillRectangle(x + 2, y - 3, fill, 7);
+        }
+        dc.drawText(x + bodyWidth + 3 + textGap, y, font, daysText,
+            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
         x += batteryWidth + gap;
 
         // Phone
-        var connected = System.getDeviceSettings().phoneConnected;
+        var connected = settings.phoneConnected;
         var px = x + 5;
         dc.setPenWidth(2);
         dc.setColor(connected ? COLOR_ACCENT : COLOR_TRACK, Graphics.COLOR_TRANSPARENT);
@@ -306,6 +338,17 @@ class FaceView extends WatchUi.WatchFace {
         }
         dc.setPenWidth(1);
         x += phoneWidth + gap;
+
+        // Bell, only when an alarm is set.
+        if (hasAlarm) {
+            var bx = x + 7;
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+            dc.fillCircle(bx, y - 2, 5);
+            dc.fillPolygon([[bx - 5, y - 2], [bx + 6, y - 2], [bx + 6, y + 3], [bx + 8, y + 5], [bx - 7, y + 5], [bx - 5, y + 3]]);
+            dc.fillRectangle(bx - 1, y - 9, 2, 2);
+            dc.fillCircle(bx, y + 7, 2);
+            x += bellWidth + gap;
+        }
 
         // Weather
         if (conditions != null && tempText != null) {

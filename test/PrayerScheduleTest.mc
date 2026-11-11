@@ -68,12 +68,12 @@ function scheduleToLocalWrapsAtMidnight(logger as Logger) as Boolean {
 }
 
 (:test)
-function scheduleNameIsShortEnoughForTheScreen(logger as Logger) as Boolean {
-    Test.assertEqual(PrayerSchedule.name(PrayerSchedule.FAJR), "FAJR");
-    Test.assertEqual(PrayerSchedule.name(PrayerSchedule.DHUHR), "DHUHR");
-    Test.assertEqual(PrayerSchedule.name(PrayerSchedule.ASR), "ASR");
-    Test.assertEqual(PrayerSchedule.name(PrayerSchedule.MAGHRIB), "MAGH");
-    Test.assertEqual(PrayerSchedule.name(PrayerSchedule.ISHA), "ISHA");
+function scheduleGlyphIsTheCharacterOfThePrayerFont(logger as Logger) as Boolean {
+    Test.assertEqual(PrayerSchedule.glyph(PrayerSchedule.FAJR), "0");
+    Test.assertEqual(PrayerSchedule.glyph(PrayerSchedule.DHUHR), "1");
+    Test.assertEqual(PrayerSchedule.glyph(PrayerSchedule.ASR), "2");
+    Test.assertEqual(PrayerSchedule.glyph(PrayerSchedule.MAGHRIB), "3");
+    Test.assertEqual(PrayerSchedule.glyph(PrayerSchedule.ISHA), "4");
     return true;
 }
 

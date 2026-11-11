@@ -47,8 +47,8 @@ Do the steps in order. Each step is done when its check passes.
 ## Code rules
 
 - **Test first.** Logic lives in modules with no device access: `EventTime`,
-  `Rings`, `PrayerCalc`, `PrayerSchedule`, `PrayerStore`. `View` and
-  `PrayerProvider` only connect them to the device and stay thin.
+  `Rings`, `StatusRow`, `TopRow`, `PrayerCalc`, `PrayerSchedule`, `PrayerStore`.
+  `View` and `PrayerProvider` only connect them to the device and stay thin.
 - **Background code.** All code that `PrayerService` uses carries the
   `(:background)` annotation (`Config`, `PrayerStore`, `FaceApp`).
 - **Astronomy uses Double** (`1.0d`). `Math.PI` is a 32-bit Float, thus

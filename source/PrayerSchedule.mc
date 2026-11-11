@@ -1,6 +1,6 @@
 import Toybox.Lang;
 
-// The next prayer of the day and its text.
+// The next prayer of the day, its name as a font character and its time text.
 // A day has six times, in minutes of the day:
 // Fajr, sunrise, Dhuhr, Asr, Maghrib, Isha. Sunrise is not a prayer.
 module PrayerSchedule {
@@ -15,8 +15,6 @@ module PrayerSchedule {
 
     // The position of each prayer in the six times of a day.
     const TIME_INDEX = [0, 2, 3, 4, 5];
-    // Short names, because the line on the screen is narrow.
-    const NAMES = ["FAJR", "DHUHR", "ASR", "MAGH", "ISHA"];
 
     // The first prayer after now, as [prayer, minutes of the day].
     // After Isha it is the Fajr of tomorrow, or null if that time is unknown.
@@ -35,8 +33,11 @@ module PrayerSchedule {
         return ((utcMinutes + offsetSeconds / 60) % MINUTES_IN_DAY + MINUTES_IN_DAY) % MINUTES_IN_DAY;
     }
 
-    function name(prayer as Number) as String {
-        return NAMES[prayer];
+    // The name of a prayer is a character of the "Prayer" bitmap font:
+    // "0" is Fajr, "1" Dhuhr, "2" Asr, "3" Maghrib, "4" Isha. The prayer
+    // constants are 0 to 4, thus the character is the number as text.
+    function glyph(prayer as Number) as String {
+        return prayer.toString();
     }
 
     // The time as "13:15". A calculated time has a mark: "~13:15".

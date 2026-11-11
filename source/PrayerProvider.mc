@@ -138,6 +138,6 @@ class PrayerProvider {
     }
 
     private function text(next as Array<Number>, official as Boolean) as Array<String> {
-        return [PrayerSchedule.name(next[0]), PrayerSchedule.timeText(next[1], official)];
+        return [PrayerSchedule.glyph(next[0]), PrayerSchedule.timeText(next[1], official)];
     }
 }

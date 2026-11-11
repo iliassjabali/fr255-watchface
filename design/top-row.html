@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FR255 Top Row</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;900&family=Roboto+Condensed:wght@700&family=Noto+Kufi+Arabic:wght@700&family=Noto+Naskh+Arabic:wght@700&display=swap">
+<style>
+  :root { --bg: #101214; --card: #1a1d21; --line: #2c3138; --fg: #e8eaed; --muted: #9aa3ad; --accent: #00AAFF; --bad: #FF0055; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 Roboto, Arial, sans-serif; }
+  .page { max-width: 1280px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1, h2 { font-family: "Roboto Condensed", "Arial Narrow", Arial, sans-serif; margin: 0; }
+  h1 { font-size: 28px; }
+  h2 { font-size: 19px; }
+  .muted { color: var(--muted); }
+  .controls { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center;
+    margin: 18px 0; padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+  .controls label { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  select { background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; font: inherit; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .card canvas { display: block; max-width: 100%; height: auto; margin: 10px auto; }
+  .tag { display: inline-block; margin-right: 8px; padding: 0 7px; border-radius: 5px; background: var(--accent); color: #000;
+    font: 700 14px "Roboto Condensed", Arial, sans-serif; }
+  .size { font-size: 14px; font-variant-numeric: tabular-nums; color: var(--accent); }
+  .size.over { color: var(--bad); }
+  .note { font-size: 13.5px; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>FR255 Top Row</h1>
+  <p class="muted">A larger hour, and the prayer name in Arabic. Each card shows the largest hour that fits for its layout.
+    The page calculates this size for the widest prayer name. The hour is 42 pixels today.
+    A centered hour with the date and the prayer at its sides does not fit: the Arabic name goes into the rings. Those layouts are removed.</p>
+
+  <div class="controls">
+    <label>Prayer
+      <select id="prayer">
+        <option value="0">Fajr</option><option value="1">Dhuhr</option><option value="2" selected>Asr</option>
+        <option value="3">Maghrib</option><option value="4">Isha</option>
+      </select></label>
+    <label>Prayer name
+      <select id="lang"><option value="ar">Arabic</option><option value="en">Latin, as today</option></select></label>
+    <label>Arabic typeface
+      <select id="arFont"><option value="Noto Kufi Arabic">Kufi (square, strong)</option><option value="Noto Naskh Arabic">Naskh (classic)</option></select></label>
+    <label>Arabic size
+      <select id="arSize"><option selected>15</option><option>17</option><option>19</option><option>21</option></select></label>
+    <label>Hour
+      <select id="hour"><option>10</option><option>08</option><option>23</option><option>00</option></select></label>
+  </div>
+
+  <div class="grid" id="grid"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var C = { bg: '#000000', fg: '#FFFFFF', dim: '#AAAAAA', track: '#555555', accent: '#00AAFF', heart: '#FF0055', stress: '#FFAA00', sun: '#FFFF55' };
+  var CAP = 0.711, XT = 16, cx = 130, cy = 130;
+  var LIMIT = 104;        // Radius of the free circle inside the rings, with a margin of 2.
+  var GAP = 8;
+  var PRAYERS = [
+    { en: 'FAJR', ar: 'الفجر', time: '06:21' }, { en: 'DHUHR', ar: 'الظهر', time: '12:19' }, { en: 'ASR', ar: 'العصر', time: '15:12' },
+    { en: 'MAGH', ar: 'المغرب', time: '17:38' }, { en: 'ISHA', ar: 'العشاء', time: '18:54' }
+  ];
+  var DATE = { day: 'WED', rest: '11 NOV' };
+
+  // bottom: the bottom of the hour digits, from the center. minutes: the size and the center of the minutes.
+  var LAYOUTS = [
+    { id: 'T0', name: 'Layout of today', kind: 'left', fixed: 42, bottom: -48, minutes: [120, 4],
+      note: 'For reference: the layout of today with the Arabic name. The hour is at the left. The date and the prayer are at its right.' },
+    { id: 'T5', name: 'Hour left, three short lines', kind: 'short', bottom: -44, minutes: [120, 4],
+      note: 'The right column has three short lines: the date, the prayer name, the prayer time. The minutes keep their size.' },
+    { id: 'T6', name: 'Hour alone, smaller minutes', kind: 'top', bottom: -52, minutes: [100, 8],
+      note: 'The hour is alone at the top. The date (no day name) and the prayer are on one line below it. The minutes go from 120 to 100 pixels.' },
+    { id: 'T7', name: 'Hour alone, minutes of 90', kind: 'top', bottom: -44, minutes: [90, 12],
+      note: 'The same as T6, with minutes of 90 pixels. The hour and the minutes are nearer in size.' }
+  ];
+
+  function kit(ctx, s) {
+    var k = {};
+    k.font = function (size, family) {
+      if (family === 'time') { ctx.font = '900 ' + size + 'px Roboto, "Arial Black", sans-serif'; }
+      else if (family === 'ar') { ctx.font = '700 ' + size + 'px "' + s.arFont + '", sans-serif'; }
+      else { ctx.font = '700 ' + size + 'px "Roboto Condensed", "Arial Narrow", Arial, sans-serif'; }
+    };
+    k.text = function (str, x, y, size, color, align, family) {
+      k.font(size, family);
+      ctx.fillStyle = color; ctx.textAlign = align || 'left'; ctx.direction = 'ltr';
+      if (family === 'ar') { ctx.textBaseline = 'middle'; ctx.fillText(str, x, y); }
+      else { ctx.textBaseline = 'alphabetic'; ctx.fillText(str, x, y + (size * CAP) / 2); }
+    };
+    k.width = function (str, size, family) { k.font(size, family); return Math.ceil(ctx.measureText(str).width); };
+    k.rect = function (x, y, w, h, color) { ctx.fillStyle = color; ctx.fillRect(x, y, w, h); };
+    k.box = function (x, y, w, h, color) { ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1); };
+    k.disc = function (x, y, r, color) { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); };
+    k.line = function (x1, y1, x2, y2, color, w) {
+      ctx.strokeStyle = color; ctx.lineWidth = w || 1; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    };
+    // The width of one digit cell, as tools/make_fonts.py makes it.
+    k.cell = function (size) {
+      k.font(size, 'time');
+      var max = 0;
+      '0123456789'.split('').forEach(function (d) { max = Math.max(max, ctx.measureText(d).width); });
+      return Math.ceil(max) + 2;
+    };
+    return k;
+  }
+
+  // One text item: its box is used for the fit check. Positions are from the center of the screen.
+  function item(k, str, x, y, align, color, family, size) {
+    var w = k.width(str, size, family), half = (family === 'ar') ? Math.ceil(size * 0.55) : 6;
+    var left = (align === 'right') ? x - w : x;
+    return { str: str, x: x, y: y, align: align, color: color, family: family, size: size,
+      box: [left, y - half, left + w, y + half] };
+  }
+
+  // The items of the top row for a layout, a hour size and a prayer.
+  function compose(k, layout, size, s, prayer) {
+    var cap = size * CAP, cell = k.cell(size), wh = cell * 2;
+    var mid = layout.bottom - cap / 2;
+    var name = (s.lang === 'ar') ? prayer.ar : prayer.en;
+    var fam = (s.lang === 'ar') ? 'ar' : null, nsize = (s.lang === 'ar') ? s.arSize : XT;
+    var items = [], hourX, x;
+    if (layout.kind === 'top') {
+      hourX = -wh / 2;
+      var y = layout.minutes[1] - (layout.minutes[0] * CAP) / 2 - 12;
+      var wd = k.width(DATE.rest, XT), wt = k.width(prayer.time, XT), wn = k.width(name, nsize, fam);
+      x = -(wd + 12 + wt + 5 + wn) / 2;
+      items.push(item(k, DATE.rest, x, y, 'left', C.dim, null, XT));
+      items.push(item(k, prayer.time, x + wd + 12, y, 'left', C.fg, null, XT));
+      items.push(item(k, name, x + wd + 12 + wt + 5, y, 'left', C.dim, fam, nsize));
+    } else if (layout.kind === 'short') {
+      var lines = [item(k, DATE.day + ' ' + DATE.rest.split(' ')[0], 0, mid - 19, 'left', C.dim, null, XT),
+        item(k, name, 0, mid - 3, 'left', C.dim, fam, nsize), item(k, prayer.time, 0, mid + 13, 'left', C.fg, null, XT)];
+      var wr = Math.max.apply(null, lines.map(function (i) { return i.box[2] - i.box[0]; }));
+      hourX = -(wh + GAP + wr) / 2;
+      lines.forEach(function (i) { items.push(item(k, i.str, hourX + wh + GAP, i.y, 'left', i.color, i.family, i.size)); });
+    } else {
+      var dateText = DATE.day + ' ' + DATE.rest;
+      // As in View.mc: the hour and the date are centered as one group.
+      hourX = -(wh + GAP + k.width(dateText, XT)) / 2;
+      x = hourX + wh + GAP;
+      items.push(item(k, dateText, x, mid - 7, 'left', C.dim, null, XT));
+      if (s.lang === 'ar') {
+        items.push(item(k, prayer.time, x, mid + 11, 'left', C.fg, null, XT));
+        items.push(item(k, name, x + k.width(prayer.time, XT) + 5, mid + 11, 'left', C.dim, fam, nsize));
+      } else {
+        items.push(item(k, name, x, mid + 11, 'left', C.dim, fam, nsize));
+        items.push(item(k, prayer.time, x + k.width(name, XT) + 5, mid + 11, 'left', C.fg, null, XT));
+      }
+    }
+    return { items: items, hourX: hourX, cell: cell, cap: cap, hourBox: [hourX, layout.bottom - cap, hourX + wh, layout.bottom] };
+  }
+
+  function inside(box) {
+    return [[box[0], box[1]], [box[2], box[1]], [box[0], box[3]], [box[2], box[3]]].every(function (p) {
+      return p[0] * p[0] + p[1] * p[1] <= LIMIT * LIMIT;
+    });
+  }
+  function fits(k, layout, size, s) {
+    var minutesTop = layout.minutes[1] - (layout.minutes[0] * CAP) / 2;
+    return PRAYERS.every(function (prayer) {
+      var c = compose(k, layout, size, s, prayer);
+      // Each text must stay in the free circle and above the minutes.
+      return inside(c.hourBox) && c.hourBox[3] <= minutesTop - 4 &&
+        c.items.every(function (i) { return inside(i.box) && i.box[3] <= minutesTop - 1; });
+    });
+  }
+  function maxSize(k, layout, s) {
+    if (layout.fixed) { return layout.fixed; }
+    for (var size = 96; size > 30; size--) { if (fits(k, layout, size, s)) { return size; } }
+    return 30;
+  }
+
+  function drawFace(ctx, layout, s) {
+    var k = kit(ctx, s);
+    var size = maxSize(k, layout, s);
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, 130, 0, Math.PI * 2); ctx.clip();
+    k.rect(0, 0, 260, 260, C.bg);
+    [[125, 0.45, C.heart], [117, 0.6, C.accent], [109, 0.3, C.stress]].forEach(function (r) {
+      var from = Math.PI * 0.75, full = Math.PI * 1.5;
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = C.track; ctx.beginPath(); ctx.arc(cx, cy, r[0], from, from + full); ctx.stroke();
+      ctx.strokeStyle = r[2]; ctx.beginPath(); ctx.arc(cx, cy, r[0], from, from + full * r[1]); ctx.stroke();
+    });
+    // Top row
+    var c = compose(k, layout, size, s, PRAYERS[s.prayer]);
+    s.hour.split('').forEach(function (d, i) {
+      k.font(size, 'time'); ctx.fillStyle = C.fg; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+      ctx.fillText(d, cx + c.hourX + i * c.cell + c.cell / 2, cy + layout.bottom);
+    });
+    c.items.forEach(function (i) { k.text(i.str, cx + i.x, cy + i.y, i.size, i.color, i.align, i.family); });
+    // Minutes, event and status row
+    k.text('50', cx, cy + layout.minutes[1], layout.minutes[0], C.accent, 'center', 'time');
+    k.box(cx - 48, cy + 60, 16, 14, C.dim); k.rect(cx - 48, cy + 60, 16, 4, C.dim);
+    k.text('14:30', cx - 26, cy + 66, XT, C.fg); k.text('in 25 min', cx + 12, cy + 66, XT, C.dim);
+    var x = cx - 65, y = cy + 92;
+    k.box(x, y - 6, 28, 13, C.dim); k.rect(x + 28, y - 2, 3, 5, C.dim); k.rect(x + 2, y - 4, 15, 9, C.track);
+    k.text('62', x + 14, y, 12, C.fg, 'center');
+    ctx.strokeStyle = C.accent; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(x + 41, y - 9, 11, 18, 2); ctx.stroke();
+    k.rect(x + 45, y + 4, 3, 2, C.accent);
+    ctx.fillStyle = C.fg; ctx.beginPath(); ctx.arc(x + 69, y - 2, 5, Math.PI, 0);
+    ctx.lineTo(x + 74, y + 3); ctx.lineTo(x + 76, y + 5); ctx.lineTo(x + 62, y + 5); ctx.lineTo(x + 64, y + 3); ctx.closePath(); ctx.fill();
+    k.rect(x + 68, y - 9, 2, 2, C.fg); k.disc(x + 69, y + 7, 2, C.fg);
+    k.disc(x + 95, y, 4, C.sun);
+    [[-8, 0, 9, 0], [0, -8, 0, 9], [-6, -6, 7, 7], [-6, 6, 7, -7]].forEach(function (r) {
+      k.line(x + 95 + r[0], y + r[1], x + 95 + r[2], y + r[3], C.sun, 1);
+    });
+    k.text('18°', x + 109, y, XT, C.fg);
+    ctx.restore();
+    return { size: size, cap: Math.round(size * CAP), ok: fits(k, layout, size, s) };
+  }
+
+  var grid = document.getElementById('grid');
+  var cards = LAYOUTS.map(function (layout) {
+    var card = document.createElement('div'); card.className = 'card';
+    var head = document.createElement('h2');
+    var tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = layout.id;
+    head.appendChild(tag); head.appendChild(document.createTextNode(layout.name));
+    var c = document.createElement('canvas'); c.width = 780; c.height = 780; c.style.width = '260px';
+    c.getContext('2d').scale(3, 3);
+    var size = document.createElement('div'); size.className = 'size';
+    var note = document.createElement('p'); note.className = 'note muted'; note.textContent = layout.note;
+    [head, c, size, note].forEach(function (el) { card.appendChild(el); });
+    grid.appendChild(card);
+    return { layout: layout, ctx: c.getContext('2d'), size: size };
+  });
+
+  function el(id) { return document.getElementById(id); }
+  function render() {
+    var s = { prayer: Number(el('prayer').value), lang: el('lang').value, arFont: el('arFont').value,
+      arSize: Number(el('arSize').value), hour: el('hour').value };
+    cards.forEach(function (c) {
+      var r = drawFace(c.ctx, c.layout, s);
+      c.size.textContent = 'Hour size: ' + r.size + ' pixels. Digit height: ' + r.cap + ' pixels (30 today).' + (r.ok ? '' : ' A text goes out of the free space.');
+      c.size.className = 'size' + (r.ok ? '' : ' over');
+    });
+  }
+  ['prayer', 'lang', 'arFont', 'arSize', 'hour'].forEach(function (id) { el(id).addEventListener('input', render); });
+  render();
+  if (document.fonts && document.fonts.load) {
+    Promise.all(['900 40px Roboto', '700 16px "Roboto Condensed"', '700 17px "Noto Kufi Arabic"', '700 17px "Noto Naskh Arabic"']
+      .map(function (f) { return document.fonts.load(f, '0123456789 الفجر'); })).then(render, render);
+  }
+}());
+</script>
+</body>
+</html>

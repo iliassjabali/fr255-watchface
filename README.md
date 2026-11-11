@@ -85,6 +85,10 @@ The tests cover the logic that has no access to the device:
 - `source/EventTime.mc`: the minutes to the next calendar event and the
   countdown text.
 - `source/Rings.mc`: the filled part of each ring, in degrees.
+- `source/StatusRow.mc`: the battery level, the text of the days that remain
+  and the alarm of the status row.
+- `source/TopRow.mc`: the position of the hour and of the text lines at its
+  right.
 - `source/PrayerCalc.mc`: the prayer times from the position of the sun.
 - `source/PrayerSchedule.mc`: the next prayer and its text.
 - `source/PrayerStore.mc`: the official times that the web service sent.
@@ -232,8 +236,13 @@ CIQ_KEY="$HOME/.garmin/connectiq/developer_key.der" tools/ci_build.sh
 ## Fonts
 
 The watch has no number font that is large enough for the minutes. The digit
-fonts in `resources/fonts` are Roboto Black (Apache License 2.0). To make them
-again, run:
+fonts in `resources/fonts` are Roboto Black (Apache License 2.0).
+
+The watch cannot join Arabic letters. Thus the font `prayer` holds each prayer
+name as one glyph, in Noto Kufi Arabic Bold (SIL Open Font License 1.1). The
+characters `0` to `4` are the names from Fajr to Isha.
+
+To make the fonts again, run:
 
 ```bash
 python3 tools/make_fonts.py
@@ -256,3 +265,4 @@ The script needs Google Chrome and an internet connection.
   license for them.
 - City coordinates: GeoNames (https://www.geonames.org), CC BY 4.0.
 - Digit fonts: Roboto Black, Apache License 2.0.
+- Prayer name font: Noto Kufi Arabic Bold, SIL Open Font License 1.1.

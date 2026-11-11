@@ -2,43 +2,62 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Digit font generator</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@900&display=block">
+<title>Bitmap font generator</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@900&family=Noto+Kufi+Arabic:wght@700&display=block">
 </head>
 <body>
 <!--
-  Draws the digits 0 to 9 in Roboto Black on one row of equal cells, for each
-  size in the "sizes" query parameter. tools/make_fonts.py reads the result
-  from the element "out" and writes the .fnt and .png files for Connect IQ.
+  Draws the glyphs of each font in the "fonts" query parameter on one row.
+  This parameter is a JSON list of objects with the keys size, family,
+  weight and pad, and the optional key glyphs (a list of texts). Without
+  glyphs, the glyphs are the digits 0 to 9 in cells of equal width. With
+  glyphs, each text is one glyph with its own width. tools/make_fonts.py
+  reads the result (one entry for each font, in the same order, with the x
+  and the width of each glyph) from the element "out" and writes the .fnt
+  and .png files for Connect IQ.
 -->
 <pre id="out">pending</pre>
 <script>
 (async function () {
-  var sizes = (new URLSearchParams(location.search).get('sizes') || '120').split(',').map(Number);
-  var digits = '0123456789';
+  var fonts = JSON.parse(new URLSearchParams(location.search).get('fonts') || '[]');
+  var digits = '0123456789'.split('');
   var result = [];
   try {
-    await document.fonts.load('900 100px Roboto', digits);
-    var loaded = document.fonts.check('900 100px Roboto');
-    sizes.forEach(function (size) {
+    for (var f of fonts) {
+      // Load the typeface with the real text, so the right subset loads.
+      await document.fonts.load(f.weight + ' 100px "' + f.family + '"', (f.glyphs || digits).join(''));
+    }
+    fonts.forEach(function (font) {
+      var size = font.size, face = font.weight + ' ' + size + 'px "' + font.family + '"';
+      var texts = font.glyphs || digits;
+      var loaded = document.fonts.check(font.weight + ' 100px "' + font.family + '"', texts.join(''));
       var canvas = document.createElement('canvas'), ctx = canvas.getContext('2d');
-      ctx.font = '900 ' + size + 'px Roboto';
-      var advance = 0, ascent = 0, descent = 0;
-      digits.split('').forEach(function (d) {
-        var m = ctx.measureText(d);
-        advance = Math.max(advance, m.width, m.actualBoundingBoxLeft + m.actualBoundingBoxRight);
+      ctx.font = face;
+      ctx.direction = 'rtl';
+      ctx.textAlign = 'center';
+      var widths = [], ascent = 0, descent = 0;
+      texts.forEach(function (text) {
+        var m = ctx.measureText(text);
+        // The text is centered, thus the ink must fit on each side of the center.
+        widths.push(Math.ceil(Math.max(m.width, m.actualBoundingBoxLeft + m.actualBoundingBoxRight,
+          2 * m.actualBoundingBoxLeft, 2 * m.actualBoundingBoxRight)) + font.pad);
         ascent = Math.max(ascent, m.actualBoundingBoxAscent);
         descent = Math.max(descent, m.actualBoundingBoxDescent);
       });
-      var cell = Math.ceil(advance) + 2, top = Math.ceil(ascent) + 1, height = top + Math.ceil(descent) + 1;
-      canvas.width = cell * digits.length;
+      // Digits have cells of equal width.
+      if (!font.glyphs) { widths = widths.map(function () { return Math.max.apply(null, widths); }); }
+      var top = Math.ceil(ascent) + 1, height = top + Math.ceil(descent) + 1;
+      var glyphs = [], x = 0;
+      widths.forEach(function (w) { glyphs.push({ x: x, width: w }); x += w; });
+      canvas.width = x;
       canvas.height = height;
-      ctx.font = '900 ' + size + 'px Roboto';
+      ctx.font = face;
+      ctx.direction = 'rtl';
       ctx.fillStyle = '#FFFFFF';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'alphabetic';
-      digits.split('').forEach(function (d, i) { ctx.fillText(d, i * cell + cell / 2, top); });
-      result.push({ size: size, cell: cell, height: height, base: top, loaded: loaded, png: canvas.toDataURL('image/png') });
+      texts.forEach(function (text, i) { ctx.fillText(text, glyphs[i].x + glyphs[i].width / 2, top); });
+      result.push({ size: size, glyphs: glyphs, height: height, base: top, loaded: loaded, png: canvas.toDataURL('image/png') });
     });
     document.getElementById('out').textContent = JSON.stringify(result);
   } catch (e) {
