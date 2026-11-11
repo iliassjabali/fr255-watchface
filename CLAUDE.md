@@ -88,7 +88,24 @@ Do the steps in order. Each step is done when its check passes.
   and runs the Worker tests. It cannot run the Monkey C tests, thus run them
   in the simulator before each push.
 - After a change to the workflow or to `tools/ci_build.sh`, run `actionlint`,
-  `yamllint` and `shellcheck`, then confirm the run with `gh run watch`.
+  `yamllint .github/workflows/build.yml` and `shellcheck`, then confirm the
+  run with `gh run watch`.
+- `.yamllint` holds the rules for the workflow: line length 140, no document
+  start, no truthy check on keys. `yamllint` must exit with 0. The CI does not
+  run `yamllint`.
+
+## Releases
+
+- `README.md`, section "Make a release", is the source for the steps.
+- **Write the notes before the tag.** Each release needs
+  `docs/releases/vX.Y.Z.md` on `main`: what is new, the install steps, the
+  compatibility and the known limits. Use the file of the last release as a
+  model.
+- Then make the tag `vX.Y.Z` and push it. The CI gives the notes file to
+  `gh release create` and attaches the zip file.
+- If the notes file is absent or empty, the run stops before the build. Push
+  the file, then move the tag.
+- Make a tag only when the user asks.
 
 ## Deploy and git
 
