@@ -82,6 +82,14 @@ Do the steps in order. Each step is done when its check passes.
   `worker/data/UNMATCHED.md` lists the others. Add a city only with a
   confirmed position.
 
+## CI
+
+- `README.md`, section "CI", explains the workflow. The CI builds the zip file
+  and runs the Worker tests. It cannot run the Monkey C tests, thus run them
+  in the simulator before each push.
+- After a change to the workflow or to `tools/ci_build.sh`, run `actionlint`,
+  `yamllint` and `shellcheck`, then confirm the run with `gh run watch`.
+
 ## Deploy and git
 
 - Deploy the Worker with `npx wrangler deploy` in `worker/`, when the user asks.

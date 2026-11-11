@@ -1,0 +1,37 @@
+FR255 watch face - install
+
+This file is for the Garmin Forerunner 255 (the standard model, not the
+255 Music, 255s or 255s Music).
+
+WINDOWS
+1. Connect the watch to the computer with the USB cable.
+2. Open the watch in File Explorer. It shows as "Forerunner 255".
+3. Open the folder GARMIN, then the folder APPS.
+4. Copy the file fr255-watchface.prg into the APPS folder.
+5. Disconnect the watch.
+
+MAC
+macOS cannot open the watch in Finder.
+1. Install OpenMTP (https://openmtp.ganeshrvel.com) or Android File Transfer.
+2. Close Garmin Express if it is open.
+3. Connect the watch with the USB cable and open the tool.
+4. Open the folder GARMIN, then the folder APPS.
+5. Copy the file fr255-watchface.prg into the APPS folder.
+6. Disconnect the watch.
+
+ON THE WATCH
+1. Hold the UP button to open the menu.
+2. Select "Watch Face".
+3. Select "FR255 Test Face" and apply it.
+
+WHAT IT SHOWS
+- The minutes, large, in the center. The hour is small, on top.
+- Three rings: heart rate (red), Body Battery (blue), stress (orange).
+- The date and the next prayer time. A time with the mark "~" is calculated
+  on the watch. A time with no mark is the official Habous time of your city.
+- The next calendar event, the battery, the phone connection, the weather.
+
+NOTES
+- The prayer times need a position. The watch gets it from the weather data
+  after a sync with Garmin Connect. Before that, it uses Casablanca.
+- To remove the watch face, delete the file from GARMIN/APPS.

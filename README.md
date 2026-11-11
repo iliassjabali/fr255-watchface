@@ -51,6 +51,56 @@ The tests cover the logic that has no access to the device:
 The drawing code in `source/View.mc` has no unit tests. Check it in the
 simulator or on the watch.
 
+## CI
+
+`.github/workflows/build.yml` runs on GitHub for each push to `main`, each
+pull request, and each tag that starts with `v`. It has two jobs.
+
+**Watch face**
+
+1. It downloads the Connect IQ SDK for Linux from the public list of Garmin,
+   and keeps it in the cache for the next runs. No Garmin login is necessary.
+2. It puts the device file `ci/devices/fr255/compiler.json` in the Garmin
+   folder. The compiler needs only this file of the device.
+3. It gets a developer key. If the secret `CIQ_DEVELOPER_KEY_B64` exists, the
+   key comes from it. If not, the run makes a new key.
+4. `tools/ci_build.sh` builds the watch face, compiles the unit tests, and
+   makes `fr255-watchface.zip` with the `.prg` file and `docs/INSTALL.txt`.
+5. It keeps the zip file as an artifact of the run.
+6. For a tag, it also attaches the zip file to a GitHub release.
+
+**Worker**
+
+It installs the packages, checks the types, and runs the Vitest tests.
+
+**Download the zip file**
+
+- From a run: open the **Actions** tab, open the last run of "Build", and
+  download `fr255-watchface` in the section **Artifacts**. GitHub removes an
+  artifact after 90 days.
+- From a release: make a tag, then open the **Releases** page.
+
+  ```bash
+  git tag v1.0.0
+  git push origin v1.0.0
+  ```
+
+**Limits**
+
+- The CI does not run the Monkey C unit tests, because they need the
+  simulator. It only proves that they compile. Run them on your computer.
+- The repository is private, thus only people with access can download the
+  zip file.
+- To sign each build with your own key, store it as a secret:
+  `base64 -i ~/.garmin/connectiq/developer_key.der | gh secret set CIQ_DEVELOPER_KEY_B64`
+
+**Run the build script on your computer**
+
+```bash
+CIQ_SDK="$(cat "$HOME/Library/Application Support/Garmin/ConnectIQ/current-sdk.cfg")" \
+CIQ_KEY="$HOME/.garmin/connectiq/developer_key.der" tools/ci_build.sh
+```
+
 ## Prayer times
 
 The watch face shows the next prayer below the date.

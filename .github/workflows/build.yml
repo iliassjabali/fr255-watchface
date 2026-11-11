@@ -1,0 +1,109 @@
+# Build the watch face and the Worker, and give the watch face as a zip file.
+#
+# - Each push and each pull request: build, then keep the zip file as an
+#   artifact of the run (Actions tab, open the run, section "Artifacts").
+# - Each tag that starts with "v": the same, and the zip file is also attached
+#   to a GitHub release, where it stays.
+#
+# See the section "CI" in README.md.
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # The Connect IQ SDK for Linux, from the public list of Garmin:
+  # https://developer.garmin.com/downloads/connect-iq/sdks/sdks.json
+  CIQ_SDK_FILE: connectiq-sdk-lin-9.3.0-2026-10-20-95888f262.zip
+
+jobs:
+  watch-face:
+    name: Watch face
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Restore the SDK from the cache
+        id: sdk-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/ciq-sdk
+          key: ${{ env.CIQ_SDK_FILE }}
+
+      - name: Download the SDK
+        if: steps.sdk-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL -o /tmp/sdk.zip \
+            "https://developer.garmin.com/downloads/connect-iq/sdks/$CIQ_SDK_FILE"
+          mkdir -p ~/ciq-sdk
+          unzip -q /tmp/sdk.zip -d ~/ciq-sdk
+          chmod +x ~/ciq-sdk/bin/*
+
+      # The secret CIQ_DEVELOPER_KEY_B64 is optional. With no secret, the run
+      # makes a new key. A file for a cable install works with all keys.
+      - name: Get the developer key
+        env:
+          CIQ_DEVELOPER_KEY_B64: ${{ secrets.CIQ_DEVELOPER_KEY_B64 }}
+        run: |
+          mkdir -p ~/ciq-key
+          if [ -n "$CIQ_DEVELOPER_KEY_B64" ]; then
+            echo "$CIQ_DEVELOPER_KEY_B64" | base64 -d > ~/ciq-key/developer_key.der
+            echo "The key is from the secret."
+          else
+            openssl genrsa -out ~/ciq-key/developer_key.pem 4096
+            openssl pkcs8 -topk8 -inform PEM -outform DER \
+              -in ~/ciq-key/developer_key.pem -out ~/ciq-key/developer_key.der -nocrypt
+            echo "The key is new for this run."
+          fi
+
+      - name: Build
+        run: CIQ_SDK="$HOME/ciq-sdk" CIQ_KEY="$HOME/ciq-key/developer_key.der" tools/ci_build.sh
+
+      - name: Keep the zip file as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fr255-watchface
+          path: dist/fr255-watchface.zip
+          if-no-files-found: error
+
+      - name: Attach the zip file to a release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" dist/fr255-watchface.zip \
+            --title "$TAG" --notes "Watch face for the Garmin Forerunner 255. The install steps are in INSTALL.txt, in the zip file."
+
+  worker:
+    name: Worker
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx vitest run
