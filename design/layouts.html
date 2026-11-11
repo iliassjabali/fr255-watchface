@@ -1058,6 +1058,23 @@
   render(LAYOUTS, document.getElementById('grid'));
 
   function drawAll() { cards.forEach(function (c) { draw(c.canvas, c.layout); }); }
+  // With "?only=P6" in the address, the page shows only that dial, with no
+  // text. tools/make_readme_image.sh uses this to make the image of the README.
+  var only = new URLSearchParams(typeof location !== 'undefined' ? location.search : '').get('only');
+  if (only) {
+    var found = null;
+    cards.forEach(function (c) { if (c.layout.code === only) { found = c; } });
+    if (found) {
+      var big = document.createElement('canvas');
+      big.style.cssText = 'display:block;width:600px;height:600px';
+      document.body.innerHTML = '';
+      document.body.style.margin = '0';
+      document.body.style.background = 'transparent';
+      document.body.appendChild(big);
+      cards = [{ canvas: big, layout: found.layout }];
+    }
+  }
+
   drawAll();
   if (document.fonts && document.fonts.load) {
     Promise.all([

@@ -3,6 +3,14 @@
 A Connect IQ watch face for the Garmin Forerunner 255 (`fr255`), with a small
 Cloudflare Worker that gives it the official prayer times for Morocco.
 
+<p align="center">
+  <img src="docs/watch-face.png" width="300" alt="The watch face: large blue minutes, three open rings, the hour, the date, the next prayer, the next calendar event, the battery, the phone and the weather">
+</p>
+
+The image is a drawing from `design/layouts.html`, with example values. The
+fonts on the watch are a little different. `tools/make_readme_image.sh` makes
+the image again.
+
 ## What the watch face shows
 
 - **Center:** the minutes, large, in blue.
