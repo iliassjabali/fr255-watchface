@@ -1,1 +1,5 @@
 project.manifest = manifest.xml
+
+# The test folder holds (:test) functions. The compiler removes them from a
+# release build and keeps them only with the --unit-test option.
+base.sourcePath = source;test

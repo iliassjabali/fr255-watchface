@@ -13,13 +13,14 @@ import Toybox.Weather;
 class FaceView extends WatchUi.WatchFace {
 
     // Palette, from the 64 colors of the Forerunner 255 display.
-    // Amber is the one accent: the minutes, the step ticks and the step icon.
-    private const COLOR_ACCENT = 0xFFAA00;
+    // Blue is the one accent: the minutes, the step ticks, the step icon,
+    // the connected phone and the countdown of a near event.
+    private const COLOR_ACCENT = 0x00AAFF;
     private const COLOR_DIM = 0xAAAAAA;
     private const COLOR_TRACK = 0x555555;
     private const COLOR_HEART = 0xFF0055;
-    private const COLOR_ENERGY = 0x00AAFF;
-    private const COLOR_STEPS = 0xFFAA00;
+    private const COLOR_ENERGY = 0x55FF00;
+    private const COLOR_SUN = 0xFFFF55;
 
     private var _nextEvent as String?;
     private var _bodyBattery as Number?;
@@ -141,19 +142,11 @@ class FaceView extends WatchUi.WatchFace {
 
     // 60 ticks on the screen edge. The lit ticks show the progress to the step goal.
     private function drawStepTicks(dc as Dc, cx as Number, cy as Number, activity as ActivityMonitor.Info) as Void {
-        var steps = activity.steps;
-        var goal = activity.stepGoal;
-        var lit = 0;
-        if (steps != null && goal != null && goal > 0) {
-            lit = (60 * steps) / goal;
-            if (lit > 60) {
-                lit = 60;
-            }
-        }
+        var lit = StepTicks.lit(activity.steps, activity.stepGoal);
 
         var outer = cx - 1;
         dc.setPenWidth(2);
-        for (var i = 0; i < 60; i++) {
+        for (var i = 0; i < StepTicks.COUNT; i++) {
             var angle = (i * Math.PI) / 30;
             var sin = Math.sin(angle);
             var cos = Math.cos(angle);
@@ -186,7 +179,7 @@ class FaceView extends WatchUi.WatchFace {
         var connected = System.getDeviceSettings().phoneConnected;
         var px = x + 32 + textWidth + 12 + 5;
         dc.setPenWidth(2);
-        dc.setColor(connected ? COLOR_ENERGY : COLOR_TRACK, Graphics.COLOR_TRANSPARENT);
+        dc.setColor(connected ? COLOR_ACCENT : COLOR_TRACK, Graphics.COLOR_TRANSPARENT);
         dc.drawRoundedRectangle(px - 5, y - 9, 11, 18, 2);
         dc.fillRectangle(px - 1, y + 4, 3, 2);
         if (!connected) {
@@ -237,7 +230,7 @@ class FaceView extends WatchUi.WatchFace {
             || condition == Weather.CONDITION_LIGHT_SNOW || condition == Weather.CONDITION_HEAVY_SNOW;
 
         if (clear) {
-            dc.setColor(COLOR_ACCENT, Graphics.COLOR_TRANSPARENT);
+            dc.setColor(COLOR_SUN, Graphics.COLOR_TRANSPARENT);
             dc.fillCircle(x, y, 4);
             dc.drawLine(x - 8, y, x + 9, y);
             dc.drawLine(x, y - 8, x, y + 9);
@@ -253,7 +246,7 @@ class FaceView extends WatchUi.WatchFace {
         dc.fillCircle(x + 6, cloudY + 2, 3);
         dc.fillRectangle(x - 4, cloudY + 1, 10, 5);
         if (wet) {
-            dc.setColor(COLOR_ENERGY, Graphics.COLOR_TRANSPARENT);
+            dc.setColor(COLOR_ACCENT, Graphics.COLOR_TRANSPARENT);
             dc.setPenWidth(2);
             dc.drawLine(x - 3, y + 5, x - 5, y + 9);
             dc.drawLine(x + 2, y + 5, x, y + 9);
@@ -275,7 +268,7 @@ class FaceView extends WatchUi.WatchFace {
     }
 
     private function drawSteps(dc as Dc, x as Number, y as Number) as Void {
-        dc.setColor(COLOR_STEPS, Graphics.COLOR_TRANSPARENT);
+        dc.setColor(COLOR_ACCENT, Graphics.COLOR_TRANSPARENT);
         dc.fillEllipse(x - 5, y + 2, 3, 6);
         dc.fillEllipse(x + 5, y - 2, 3, 6);
     }
@@ -302,59 +295,14 @@ class FaceView extends WatchUi.WatchFace {
         dc.setColor((event != null) ? Graphics.COLOR_WHITE : COLOR_DIM, Graphics.COLOR_TRANSPARENT);
         dc.drawText(x + iconWidth + gap, y, font, text, left);
 
-        var minutes = (event != null) ? minutesUntil(event) : null;
-        if (minutes != null) {
-            // Amber marks an event that starts in 15 minutes or less.
-            dc.setColor((minutes <= 15) ? COLOR_ACCENT : COLOR_DIM, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx, y + 20, font, countdownText(minutes), center);
-        }
-    }
-
-    private function countdownText(minutes as Number) as String {
-        if (minutes == 0) {
-            return "now";
-        }
-        if (minutes < 60) {
-            return "in " + minutes + " min";
-        }
-        return "in " + (minutes / 60) + " h " + (minutes % 60).format("%02d");
-    }
-
-    // The minutes from now to an event time such as "12:00", "3:00p" or "3:00 PM".
-    // Returns null if the text is not a time.
-    private function minutesUntil(time as String) as Number? {
-        var colon = time.find(":");
-        if (colon == null || colon == 0) {
-            return null;
-        }
-        var hour = time.substring(0, colon).toNumber();
-        var minute = time.substring(colon + 1, colon + 3).toNumber();
-        if (hour == null || minute == null) {
-            return null;
-        }
-
-        var lower = time.toLower();
-        var isPm = lower.find("p") != null;
-        var isAm = lower.find("a") != null;
         var clock = System.getClockTime();
-        var now = clock.hour * 60 + clock.min;
-
-        if (isPm || isAm) {
-            if (isPm && hour < 12) {
-                hour += 12;
-            } else if (isAm && hour == 12) {
-                hour = 0;
-            }
-            return (hour * 60 + minute - now + 1440) % 1440;
+        var minutes = (event != null)
+            ? EventTime.minutesUntil(event, clock.hour * 60 + clock.min, System.getDeviceSettings().is24Hour)
+            : null;
+        if (minutes != null) {
+            // The accent marks an event that starts in 15 minutes or less.
+            dc.setColor((minutes <= 15) ? COLOR_ACCENT : COLOR_DIM, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(cx, y + 20, font, EventTime.countdownText(minutes), center);
         }
-
-        var wait = (hour * 60 + minute - now + 1440) % 1440;
-        // A 12-hour time with no AM or PM mark: use the nearest future occurrence.
-        if (!System.getDeviceSettings().is24Hour && hour <= 12) {
-            var other = ((hour % 12 + 12) * 60 + minute - now + 1440) % 1440;
-            var first = ((hour % 12) * 60 + minute - now + 1440) % 1440;
-            wait = (first < other) ? first : other;
-        }
-        return wait;
     }
 }
