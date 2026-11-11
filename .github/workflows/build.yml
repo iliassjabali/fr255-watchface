@@ -3,7 +3,8 @@
 # - Each push and each pull request: build, then keep the zip file as an
 #   artifact of the run (Actions tab, open the run, section "Artifacts").
 # - Each tag that starts with "v": the same, and the zip file is also attached
-#   to a GitHub release, where it stays.
+#   to a GitHub release, where it stays. The text of the release comes from
+#   docs/releases/<tag>.md, which must exist.
 #
 # - Each push to main that changes the folder worker/: after the Worker tests
 #   pass, the Worker is deployed to Cloudflare.
@@ -34,6 +35,17 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
+
+      # A release needs its notes file. Without it, the run stops before the build.
+      - name: Check that the release notes exist
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [ ! -s "docs/releases/$TAG.md" ]; then
+            echo "::error::The file docs/releases/$TAG.md is absent or empty. Write the release notes, then move the tag."
+            exit 1
+          fi
 
       - uses: actions/setup-java@v5
         with:
@@ -90,7 +102,7 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           gh release create "$TAG" dist/fr255-watchface.zip \
-            --title "$TAG" --notes "Watch face for the Garmin Forerunner 255. The install steps are in INSTALL.txt, in the zip file."
+            --title "$TAG" --notes-file "docs/releases/$TAG.md"
 
   worker:
     name: Worker

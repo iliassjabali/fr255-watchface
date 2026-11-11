@@ -167,7 +167,8 @@ pull request, and each tag that starts with `v`. It has three jobs.
 4. `tools/ci_build.sh` builds the watch face, compiles the unit tests, and
    makes `fr255-watchface.zip` with the `.prg` file and `docs/INSTALL.txt`.
 5. It keeps the zip file as an artifact of the run.
-6. For a tag, it also attaches the zip file to a GitHub release.
+6. For a tag, it also makes a GitHub release with the text of
+   `docs/releases/<tag>.md`, and attaches the zip file.
 
 **Worker**
 
@@ -191,12 +192,20 @@ With no token, the job makes no deploy and shows a warning on the run.
 
 **Make a release**
 
+1. Write the release notes in `docs/releases/vX.Y.Z.md`: what is new, the
+   install steps, the compatibility and the known limits. Use the file of the
+   last release as a model.
+2. Commit the file and push it to `main`.
+3. Make the tag and push it:
+
 ```bash
-git tag -a v1.1.0 -m "Version 1.1.0"
-git push origin v1.1.0
+git tag -a v1.2.0 -m "Version 1.2.0"
+git push origin v1.2.0
 ```
 
-The CI then makes the release and attaches `fr255-watchface.zip`.
+The CI then makes the release with the text of the notes file, and attaches
+`fr255-watchface.zip`. If the notes file is absent or empty, the run stops
+with an error before the build.
 
 **Download the zip file of a run**
 
