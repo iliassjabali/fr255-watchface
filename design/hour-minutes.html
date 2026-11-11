@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FR255 Hour and Minutes</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;900&family=Roboto+Condensed:wght@700&family=Noto+Kufi+Arabic:wght@700&display=swap">
+<style>
+  :root { --bg: #101214; --card: #1a1d21; --line: #2c3138; --fg: #e8eaed; --muted: #9aa3ad; --accent: #00AAFF; --bad: #FF0055; --good: #55FF00; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 Roboto, Arial, sans-serif; }
+  .page { max-width: 1280px; margin: 0 auto; padding: 24px 16px 32px; }
+  h1 { font-family: "Roboto Condensed", "Arial Narrow", Arial, sans-serif; margin: 0; font-size: 28px; }
+  h2 { font-family: "Roboto Condensed", "Arial Narrow", Arial, sans-serif; margin: 0 0 8px; font-size: 18px; }
+  .muted { color: var(--muted); }
+  .controls { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; margin: 14px 0; font-size: 14px; }
+  .slider { display: flex; align-items: center; gap: 12px; flex: 1 1 420px; }
+  .slider input[type=range] { flex: 1; accent-color: var(--accent); }
+  .slider output { min-width: 70px; font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 700; }
+  .main { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; }
+  .card.big { flex: 0 1 640px; }
+  .card.side { flex: 1 1 340px; }
+  .card canvas { display: block; max-width: 100%; height: auto; margin: 4px auto 6px; }
+  #big { width: 600px; aspect-ratio: 1; }
+  #real { width: 260px; height: 260px; }
+  .status { margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; font-size: 14px; border: 1px solid var(--line); }
+  .status.ok { color: var(--good); }
+  .status.over { color: var(--bad); border-color: var(--bad); font-weight: 700; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+  td, th { text-align: left; padding: 3px 6px; border-bottom: 1px solid var(--line); }
+  td:last-child, th:last-child { text-align: right; }
+  th { color: var(--muted); font-weight: 500; }
+  .sweep td, .sweep th { text-align: right; }
+  .sweep td:first-child, .sweep th:first-child { text-align: left; }
+  .sweep tr.now td { color: var(--accent); }
+  .tag { display: inline-block; margin-right: 8px; padding: 0 7px; border-radius: 5px; background: var(--accent); color: #000;
+    font: 700 14px "Roboto Condensed", Arial, sans-serif; }
+  .tag.ref { background: var(--muted); }
+  .note { font-size: 13px; margin: 8px 0 0; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>FR255 Hour and Minutes</h1>
+  <p class="muted" style="margin:6px 0 0">The slider makes the hour larger. The minutes take the largest whole font size that fits in the space that is left.
+    At hour 47 the face is P7 (hour 47, minutes 120 at y 134), with the Arabic name flush left in the column as on the watch. The values are 10:50, TUE 10, 13:15, event 11:35 in 45 min.</p>
+
+  <div class="controls">
+    <label class="slider">Hour size
+      <input type="range" id="hour" min="47" max="90" step="1" value="47" aria-label="Hour size in font pixels">
+      <output id="hourOut" for="hour"></output>
+    </label>
+    <label><input type="checkbox" id="limits"> Show the content circle (radius 106), the safe circle (radius 102) and the boxes</label>
+  </div>
+
+  <div class="main">
+    <section class="card big">
+      <canvas id="big" role="img" aria-label="The face, large"></canvas>
+    </section>
+    <section class="card side">
+      <h2><span class="tag ref">1:1</span>Real size, 260 x 260</h2>
+      <canvas id="real" role="img" aria-label="The face at real size"></canvas>
+      <div id="status" class="status ok"></div>
+      <h2 style="margin-top:16px">Numbers for the code</h2>
+      <table id="readout"></table>
+      <h2 style="margin-top:16px">Whole range</h2>
+      <table id="sweep" class="sweep"></table>
+      <p class="note muted" id="rule"></p>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  // The drawing code below is copied from layouts.html (kit, m1 with open rings, topRow, statusRow).
+  var C = { bg: '#000000', fg: '#FFFFFF', dim: '#AAAAAA', track: '#555555', accent: '#00AAFF', heart: '#FF0055', energy: '#FFFFFF', sun: '#FFFF55' };
+  var D = { hour: '10', minute: '50', date: 'TUE 10', temp: '18°', hr: '62', energy: 76, battery: 87, event: '11:35', countdown: 'in 45 min' };
+  var X = { stress: 28 };
+  var ORANGE = '#FFAA00';
+  var HR_PART = D.hr / 180, BODY_PART = D.energy / 100;
+  var CAP = 0.711, XT = 16, cx = 130, cy = 130, EPS = 1e-6;
+  var PRAYER = { time: '13:15' };
+  var ARABIC = 'الظهر';
+  var DIGITS = '0123456789'.split('');
+
+  // The limits: the circle of radius 106 holds the content, and the safe circle is 4 pixels inside it.
+  var RADIUS = 106, MARGIN = 4, SAFE = RADIUS - MARGIN;
+  var EVENT_TOP = 187;                 // The top of the event line.
+  var HOUR_GAP = 8;                    // The space between the hour and the three short lines.
+  var LINE_DATE = -19, LINE_PRAYER = -3, LINE_TIME = 13; // The offsets of the three lines from the center of the hour.
+
+  // The face of P7: hour 47 with its center at y 69, minutes 120 with their center at y 134.
+  var HOUR0 = 47, HOUR_Y0 = 69, MIN0 = 120, MIN_Y0 = 134;
+  var CONTENT_TOP = HOUR_Y0 - (CAP * HOUR0) / 2;                       // The top of the hour in P7.
+  var GAP_HM = (MIN_Y0 - (CAP * MIN0) / 2) - (HOUR_Y0 + (CAP * HOUR0) / 2); // The gap under the hour.
+  var GAP_ME = EVENT_TOP - (MIN_Y0 + (CAP * MIN0) / 2);                // The gap above the event line.
+
+  // The minutes are the main digits: the slider stops when they would be smaller than half of the current size.
+  var MIN_FLOOR = 60;
+
+  var showLimits = false;
+  var state = { hour: HOUR0, max: 90, layout: null };
+
+  function kit(ctx) {
+    var k = {};
+    k.font = function (size, family) {
+      ctx.font = (family === 'time' ? '900 ' : '700 ') + size + 'px ' +
+        (family === 'time' ? 'Roboto, "Arial Black", sans-serif' : '"Roboto Condensed", "Arial Narrow", Arial, sans-serif');
+    };
+    k.text = function (str, x, y, size, color, align, family) {
+      k.font(size, family);
+      ctx.fillStyle = color; ctx.textAlign = align || 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.fillText(str, x, y + (size * CAP) / 2);
+    };
+    k.width = function (str, size, family) { k.font(size, family); return ctx.measureText(str).width; };
+    k.line = function (x1, y1, x2, y2, color, w) {
+      ctx.strokeStyle = color; ctx.lineWidth = w || 1; ctx.lineCap = 'butt';
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    };
+    k.poly = function (pts, color) {
+      ctx.fillStyle = color; ctx.beginPath();
+      pts.forEach(function (p, i) { if (i) { ctx.lineTo(p[0], p[1]); } else { ctx.moveTo(p[0], p[1]); } });
+      ctx.closePath(); ctx.fill();
+    };
+    k.disc = function (x, y, r, color) { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); };
+    k.rect = function (x, y, w, h, color) { ctx.fillStyle = color; ctx.fillRect(x, y, w, h); };
+    k.box = function (x, y, w, h, color) { ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1); };
+    k.arcAt = function (x, y, r, from, to, color, w) {
+      ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineCap = 'butt';
+      ctx.beginPath(); ctx.arc(x, y, r, (from - 90) * Math.PI / 180, (to - 90) * Math.PI / 180); ctx.stroke();
+    };
+    k.phone = function (x, y) {
+      ctx.strokeStyle = C.accent; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect(x - 5, y - 9, 11, 18, 2); ctx.stroke();
+      k.rect(x - 1, y + 4, 3, 2, C.accent);
+    };
+    k.batteryDays = function (x, y, percent, text) {
+      var low = percent <= 20, color = low ? C.heart : C.fg;
+      k.box(x, y - 5, 19, 11, C.dim); k.rect(x + 19, y - 2, 3, 5, C.dim);
+      if (percent > 0) { k.rect(x + 2, y - 3, Math.floor((15 * percent) / 100), 7, color); }
+      k.text(text, x + 26, y, XT, color);
+    };
+    k.bell = function (x, y) {
+      k.disc(x, y - 2, 5, C.fg);
+      k.poly([[x - 5, y - 2], [x + 5, y - 2], [x + 5, y + 3], [x + 7, y + 5], [x - 7, y + 5], [x - 5, y + 3]], C.fg);
+      k.rect(x - 1, y - 9, 2, 2, C.fg); k.disc(x, y + 7, 2, C.fg);
+    };
+    k.prayerFont = function () { ctx.font = '700 15px "Noto Kufi Arabic", sans-serif'; ctx.direction = 'rtl'; };
+    // The Arabic name: the watch draws it left aligned at the column, as one glyph run, and the column takes its width.
+    k.prayerMetrics = function (str) {
+      k.prayerFont(); ctx.textAlign = 'left';
+      var m = ctx.measureText(str);
+      var w = Math.ceil(Math.max(m.width, m.actualBoundingBoxLeft + m.actualBoundingBoxRight));
+      ctx.direction = 'ltr';
+      return { w: w, up: m.actualBoundingBoxAscent, down: m.actualBoundingBoxDescent, left: m.actualBoundingBoxLeft, right: m.actualBoundingBoxRight };
+    };
+    k.prayerWidth = function (str) { return k.prayerMetrics(str).w; };
+    k.prayerName = function (str, x, y, color) {
+      k.prayerFont();
+      ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.fillText(str, x, y + 4);
+      ctx.direction = 'ltr';
+    };
+    // The ink width of the widest digit: the cell is wider than the ink by the side bearings.
+    k.digitInk = function (size) {
+      var ink = 0;
+      k.font(size, 'time'); ctx.textAlign = 'center';
+      DIGITS.forEach(function (d) {
+        var m = ctx.measureText(d);
+        ink = Math.max(ink, m.actualBoundingBoxLeft + m.actualBoundingBoxRight);
+      });
+      return ink;
+    };
+    k.sun = function (x, y) {
+      k.disc(x, y, 4, C.sun);
+      [[-8, 0, 9, 0], [0, -8, 0, 9], [-6, -6, 7, 7], [-6, 6, 7, -7]].forEach(function (r) {
+        k.line(x + r[0], y + r[1], x + r[2], y + r[3], C.sun, 1);
+      });
+    };
+    k.calendar = function (x, y) {
+      k.box(x, y - 6, 16, 14, C.dim); k.rect(x, y - 6, 16, 4, C.dim);
+      k.rect(x + 3, y - 9, 2, 4, C.dim); k.rect(x + 11, y - 9, 2, 4, C.dim);
+      k.rect(x + 4, y + 1, 3, 3, C.dim); k.rect(x + 9, y + 1, 3, 3, C.dim);
+    };
+    k.eventLine = function (y) {
+      var rest = '  ' + D.countdown, w1 = k.width(D.event, XT), w2 = k.width(rest, XT), x = cx - (16 + 7 + w1 + w2) / 2;
+      k.calendar(x, y); k.text(D.event, x + 23, y, XT, C.fg); k.text(rest, x + 23 + w1, y, XT, C.dim);
+    };
+    return k;
+  }
+
+  // The three open rings of m1 (rings: 'open').
+  function rings(k) {
+    var vals = [[HR_PART, C.heart], [BODY_PART, C.accent], [X.stress / 100, ORANGE]];
+    vals.forEach(function (v, i) {
+      k.arcAt(cx, cy, 125 - 8 * i, 225, 495, C.track, 6);
+      k.arcAt(cx, cy, 125 - 8 * i, 225, 225 + 270 * v[0], v[1], 6);
+    });
+  }
+
+  function statusRow(k, y) {
+    var gap = 8, days = '5d', temp = D.temp;
+    var parts = [
+      { w: 19 + 3 + 4 + k.width(days, XT), draw: function (x) { k.batteryDays(x, y, D.battery, days); } },
+      { w: 11, draw: function (x) { k.phone(x + 5, y); } },
+      { w: 14, draw: function (x) { k.bell(x + 7, y); } },
+      { w: 18 + 5 + k.width(temp, XT), draw: function (x) { k.sun(x + 9, y); k.text(temp, x + 23, y, XT, C.fg); } }
+    ];
+    var total = gap * (parts.length - 1);
+    parts.forEach(function (p) { total += p.w; });
+    var x = Math.floor(cx - total / 2);
+    parts.forEach(function (p) { p.draw(x, y); x += p.w + gap; });
+  }
+
+  // The width of a cell: the widest digit of the font at this size.
+  function cellWidth(k, size) {
+    var cell = 0;
+    DIGITS.forEach(function (d) { cell = Math.max(cell, k.width(d, size, 'time')); });
+    return Math.ceil(cell) + 2;
+  }
+
+  // The farthest corner of a box from the center of the dial.
+  function farthest(b) {
+    var d = 0;
+    [[b.x0, b.y0], [b.x1, b.y0], [b.x0, b.y1], [b.x1, b.y1]].forEach(function (p) { d = Math.max(d, Math.hypot(p[0] - cx, p[1] - cy)); });
+    return d;
+  }
+
+  // The boxes of the top row for an hour of this size, centered at yc: the digit cells and the three short lines.
+  function topBoxes(k, hourSize, yc) {
+    var cell = cellWidth(k, hourSize), hw = cell * D.hour.length, h = CAP * hourSize, pad = (cell - k.digitInk(hourSize)) / 2;
+    var date = Math.ceil(k.width(D.date, XT)), time = Math.ceil(k.width(PRAYER.time, XT)), pm = k.prayerMetrics(ARABIC);
+    var column = Math.max(date, pm.w, time);
+    var x = Math.floor(cx - (hw + HOUR_GAP + column) / 2), lx = x + hw + HOUR_GAP, th = CAP * XT / 2;
+    var base = yc + LINE_PRAYER + 4;
+    return {
+      cell: cell, x: x, lx: lx,
+      boxes: [
+        { name: 'hour', lim: SAFE, x0: x + pad, y0: yc - h / 2, x1: x + hw - pad, y1: yc + h / 2 },
+        { name: 'date', lim: RADIUS, x0: lx, y0: yc + LINE_DATE - th, x1: lx + date, y1: yc + LINE_DATE + th },
+        { name: 'prayer name', lim: RADIUS, x0: lx - pm.left, y0: base - pm.up, x1: lx + pm.right, y1: base + pm.down },
+        { name: 'prayer time', lim: RADIUS, x0: lx, y0: yc + LINE_TIME - th, x1: lx + time, y1: yc + LINE_TIME + th }
+      ]
+    };
+  }
+
+  function minutesBox(k, size, ym) {
+    var cell = cellWidth(k, size), w = cell * D.minute.length - (cell - k.digitInk(size)), h = CAP * size;
+    return { name: 'minutes', lim: SAFE, x0: cx - w / 2, y0: ym - h / 2, x1: cx + w / 2, y1: ym + h / 2 };
+  }
+
+  function inside(boxes) {
+    return boxes.every(function (b) { return farthest(b) <= b.lim + EPS; });
+  }
+
+  // The rule. The top of the hour stays at the top of P7 (y 52.3), the hour center is a whole number, and it moves
+  // down by whole pixels only as far as the top row needs to stay in the safe circle. The minutes then take the
+  // largest whole font size for which a whole center y exists with the gap of P7 (5.6 px) under the hour and the
+  // gap of P7 (10.3 px) above the event line, and the widest digits stay in the safe circle.
+  function layout(k, hourSize) {
+    var yc = Math.ceil(CONTENT_TOP + (CAP * hourSize) / 2 - EPS);
+    var top = topBoxes(k, hourSize, yc);
+    while (!inside(top.boxes) && yc < cy) { yc++; top = topBoxes(k, hourSize, yc); }
+    var hourBottom = yc + (CAP * hourSize) / 2;
+    var size = 0, ym = 0, mb = null;
+    for (var s = 200; s >= 8; s--) {
+      var h = CAP * s;
+      var lo = hourBottom + GAP_HM + h / 2, hi = EVENT_TOP - GAP_ME - h / 2;
+      var y = Math.ceil(lo - EPS);
+      if (y > hi + EPS) { continue; }
+      var b = minutesBox(k, s, y);
+      if (farthest(b) <= b.lim + EPS) { size = s; ym = y; mb = b; break; }
+    }
+    return { hourSize: hourSize, yc: yc, top: top, minSize: size, minY: ym, minBox: mb, hourBottom: hourBottom };
+  }
+
+  // The checks: the safe circle for every box, the overlaps and the gaps.
+  function check(L) {
+    var errors = [], margin = Infinity, where = '';
+    if (!L.minBox) { return { errors: ['no minutes size fits'], margin: NaN, where: '', gapHM: NaN, gapME: NaN }; }
+    L.top.boxes.concat([L.minBox]).forEach(function (b) {
+      var m = b.lim - farthest(b);
+      if (m < margin) { margin = m; where = b.name; }
+      if (m < -EPS) { errors.push(b.name + ' leaves the ' + (b.lim === SAFE ? 'safe circle' : 'content circle') + ' by ' + (-m).toFixed(1) + ' px'); }
+    });
+    if (L.minSize < MIN_FLOOR) { errors.push('the minutes are smaller than ' + MIN_FLOOR + ' px'); }
+    var linesBottom = Math.max(L.top.boxes[1].y1, L.top.boxes[2].y1, L.top.boxes[3].y1);
+    var gapHM = L.minBox.y0 - L.hourBottom, gapME = EVENT_TOP - L.minBox.y1;
+    if (L.minBox.y0 < linesBottom) { errors.push('the minutes overlap the three lines'); }
+    if (gapHM < GAP_HM - EPS) { errors.push('the minutes are too near the hour'); }
+    if (gapME < GAP_ME - EPS) { errors.push('the minutes are too near the event line'); }
+    return { errors: errors, margin: margin, where: where, gapHM: gapHM, gapME: gapME, linesBottom: linesBottom };
+  }
+
+  function drawDial(ctx, L) {
+    var k = kit(ctx);
+    rings(k);
+    k.eventLine(196);
+    // The top row.
+    var t = L.top, y = L.yc;
+    D.hour.split('').forEach(function (d, i) { k.text(d, t.x + i * t.cell + t.cell / 2, y, L.hourSize, C.fg, 'center', 'time'); });
+    k.text(D.date, t.lx, y + LINE_DATE, XT, C.dim);
+    k.prayerName(ARABIC, t.lx, y + LINE_PRAYER, C.dim);
+    k.text(PRAYER.time, t.lx, y + LINE_TIME, XT, C.fg);
+    // The minutes.
+    if (L.minSize) { k.text(D.minute, cx, L.minY, L.minSize, C.accent, 'center', 'time'); }
+    statusRow(k, cy + 92);
+  }
+
+  function drawLimits(ctx, L) {
+    ctx.lineWidth = 0.5;
+    ctx.strokeStyle = '#FF0055'; ctx.beginPath(); ctx.arc(cx, cy, RADIUS, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = '#55FF00'; ctx.beginPath(); ctx.arc(cx, cy, SAFE, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = '#FFFF55';
+    ctx.beginPath(); ctx.moveTo(0, EVENT_TOP); ctx.lineTo(260, EVENT_TOP); ctx.stroke();
+    ctx.strokeStyle = '#FF55FF';
+    L.top.boxes.concat(L.minBox ? [L.minBox] : []).forEach(function (b) { ctx.strokeRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0); });
+  }
+
+  // The large dial has a bezel around the 260 pixel screen, the real size dial is the screen only.
+  function draw(canvas, L, cssSize, bezel) {
+    var dpr = Math.max(1, window.devicePixelRatio || 1);
+    var px = Math.round(cssSize * dpr * (bezel ? 2 : 1));
+    var ctx = canvas.getContext('2d');
+    canvas.width = px; canvas.height = px;
+    var view = bezel ? 300 : 260, s = px / view;
+    ctx.setTransform(s, 0, 0, s, 0, 0);
+    ctx.clearRect(0, 0, view, view);
+    if (bezel) {
+      ctx.fillStyle = '#23272e'; ctx.beginPath(); ctx.arc(150, 150, 149, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#444b56'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(150, 150, 148, 0, Math.PI * 2); ctx.stroke();
+      ctx.translate(20, 20);
+    }
+    ctx.save();
+    ctx.beginPath(); ctx.arc(130, 130, 130, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, 260, 260);
+    drawDial(ctx, L);
+    if (showLimits) { drawLimits(ctx, L); }
+    ctx.restore();
+  }
+
+  var big = document.getElementById('big'), real = document.getElementById('real');
+  var slider = document.getElementById('hour'), hourOut = document.getElementById('hourOut');
+  var statusEl = document.getElementById('status'), readout = document.getElementById('readout');
+  var sweepEl = document.getElementById('sweep'), ruleEl = document.getElementById('rule');
+  var measure = kit(document.createElement('canvas').getContext('2d'));
+
+  function f1(n) { return (Math.round(n * 10) / 10).toFixed(1); }
+
+  function row(a, b) { return '<tr><td>' + a + '</td><td>' + b + '</td></tr>'; }
+
+  // The whole range: the largest hour size for which every size from 47 up to it fits.
+  function sweep() {
+    var rows = [], max = HOUR0;
+    for (var h = HOUR0; h <= 200; h++) {
+      var L = layout(measure, h), r = check(L);
+      if (r.errors.length) { break; }
+      max = h; rows.push({ L: L, r: r });
+    }
+    return { max: max, rows: rows };
+  }
+
+  function updateSweep() {
+    var sw = sweep();
+    state.max = sw.max;
+    slider.max = String(sw.max);
+    var picks = [], want = [47, 55, 65, 75, 85, sw.max];
+    want.forEach(function (h) { if (h <= sw.max && picks.indexOf(h) < 0) { picks.push(h); } });
+    var html = '<tr><th>Hour</th><th>Hour y</th><th>Minutes</th><th>Minutes y</th><th>Margin</th></tr>';
+    picks.forEach(function (h) {
+      var e = sw.rows[h - HOUR0];
+      html += '<tr' + (h === state.hour ? ' class="now"' : '') + '><td>' + h + '</td><td>' + e.L.yc + '</td><td>' + e.L.minSize +
+        '</td><td>' + e.L.minY + '</td><td>' + f1(e.r.margin) + '</td></tr>';
+    });
+    sweepEl.innerHTML = html;
+    var first = sw.rows[0].L, last = sw.rows[sw.rows.length - 1].L;
+    ruleEl.textContent = 'Checked every size from ' + HOUR0 + ' to ' + sw.max + ': all fit, the minutes go from ' + first.minSize + ' to ' +
+      last.minSize + '. The top of the hour is at y ' + f1(CONTENT_TOP) + ' or lower, as far as the safe circle needs. The gap under the hour is ' + f1(GAP_HM) +
+      ' px and the gap above the event line (y ' + EVENT_TOP + ') is ' + f1(GAP_ME) + ' px. The hour and the minutes use the safe circle (radius ' + SAFE +
+      '). The three lines use the content circle (radius ' + RADIUS + '), because the date line of P7 is already ' + f1(farthest(first.top.boxes[1])) + ' px from the center. The slider stops when the minutes would be smaller than ' + MIN_FLOOR + ' px.';
+  }
+
+  function render() {
+    var L = layout(measure, state.hour), r = check(L);
+    state.layout = L;
+    slider.value = String(Math.min(state.hour, state.max));
+    hourOut.textContent = state.hour + ' px';
+    draw(big, L, 600, true);
+    draw(real, L, 260, false);
+    var hourH = CAP * L.hourSize, minH = CAP * L.minSize;
+    var html = row('Hour font size', L.hourSize + ' px') +
+      row('Hour digit height', f1(hourH) + ' px') +
+      row('Hour center y', L.yc) +
+      row('Minutes font size', L.minSize ? L.minSize + ' px' : 'none') +
+      row('Minutes digit height', L.minSize ? f1(minH) + ' px' : '-') +
+      row('Minutes center y', L.minSize ? L.minY : '-') +
+      row('Smallest margin to its circle', isNaN(r.margin) ? '-' : f1(r.margin) + ' px (' + r.where + ')') +
+      row('Gap hour to minutes', isNaN(r.gapHM) ? '-' : f1(r.gapHM) + ' px') +
+      row('Gap minutes to event line', isNaN(r.gapME) ? '-' : f1(r.gapME) + ' px');
+    readout.innerHTML = html;
+    if (r.errors.length) {
+      statusEl.className = 'status over';
+      statusEl.textContent = 'DOES NOT FIT: ' + r.errors.join('; ') + '.';
+    } else {
+      statusEl.className = 'status ok';
+      statusEl.textContent = 'The hour and the minutes are inside the safe circle (radius ' + SAFE + '), the three lines are inside the content circle (radius ' + RADIUS + '), and nothing overlaps.';
+    }
+    Array.prototype.forEach.call(sweepEl.querySelectorAll('tr'), function (tr, i) {
+      if (i) { tr.classList.toggle('now', tr.firstChild.textContent === String(state.hour)); }
+    });
+  }
+
+  function refresh() { updateSweep(); render(); }
+
+  slider.addEventListener('input', function () { state.hour = parseInt(slider.value, 10); render(); });
+  document.getElementById('limits').addEventListener('change', function (e) { showLimits = e.target.checked; render(); });
+
+  var params = new URLSearchParams(location.search);
+  if (params.get('limits')) { showLimits = true; document.getElementById('limits').checked = true; }
+  var wanted = parseInt(params.get('hour'), 10);
+  if (wanted >= HOUR0) { state.hour = wanted; }
+
+  refresh();
+  if (document.fonts && document.fonts.load) {
+    Promise.all([
+      document.fonts.load('900 80px Roboto', '0123456789'),
+      document.fonts.load('700 16px "Roboto Condensed"', 'TUE 10 NOV'),
+      document.fonts.load('700 15px "Noto Kufi Arabic"', ARABIC)
+    ]).then(refresh, function () {});
+  }
+})();
+</script>
+</body>
+</html>

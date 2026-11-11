@@ -138,19 +138,19 @@
     // The width is the ink plus 2 pixels, as tools/make_fonts.py makes it. The glyph is in a cell of
     // 18 pixels, with the baseline 13 pixels from the top. x is the left edge, y is the center of the cell.
     k.prayerFont = function () { ctx.font = '700 15px "Noto Kufi Arabic", sans-serif'; ctx.direction = 'rtl'; };
+    // The text is measured and drawn with textAlign left, as the watch draws it. In a right-to-left run,
+    // the default alignment 'start' is the right edge, thus the box left of the anchor is the whole ink.
     k.prayerWidth = function (str) {
-      k.prayerFont();
+      k.prayerFont(); ctx.textAlign = 'left';
       var m = ctx.measureText(str);
-      var w = Math.ceil(Math.max(m.width, m.actualBoundingBoxLeft + m.actualBoundingBoxRight,
-        2 * m.actualBoundingBoxLeft, 2 * m.actualBoundingBoxRight)) + 2;
+      var w = Math.ceil(Math.max(m.width, m.actualBoundingBoxLeft + m.actualBoundingBoxRight)) + 2;
       ctx.direction = 'ltr';
       return w;
     };
     k.prayerName = function (str, x, y, color) {
-      var w = k.prayerWidth(str);
       k.prayerFont();
-      ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-      ctx.fillText(str, x + w / 2, y + 4);
+      ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.fillText(str, x, y + 4);
       ctx.direction = 'ltr';
     };
     k.calendar = function (x, y) {
@@ -750,7 +750,7 @@
       if (o.second) { o.second(k, x + hw + 8, topY + 11); }
       else { k.sun(x + hw + 8 + 9, topY + 11); k.text(D.temp, x + hw + 8 + 23, topY + 11, XT, C.fg); }
     }
-    k.text(D.minute, cx, my, size, o.minuteColor || C.accent, 'center', 'time');
+    k.text(D.minute, cx, o.minuteY || my, o.minuteSize || size, o.minuteColor || C.accent, 'center', 'time');
   }
   function batteryPhone(k, y) { k.battery(cx - 23, y); k.phone(cx - 23 + 27 + 8 + 5, y); }
   function eventTime(k, y, size) {
@@ -824,12 +824,12 @@
     };
   }
 
-  // The top row of the current face, as drawn by View.mc. The hour is 47 pixels high, and a column
+  // The top row of the current face, as drawn by View.mc. The hour is 70 pixels high, and a column
   // of three short lines is at its right: the day, the prayer name in Arabic, the prayer time.
   // The hour and the column are centered as one group, with 8 pixels between them.
-  // y is the center of the hour, 61 pixels above the center of the screen.
+  // y is the center of the hour, 52 pixels above the center of the screen.
   function topRow(k, y) {
-    var hourSize = 47, gap = 8, date = 'TUE 10', name = 'الظهر', time = PRAYER.time;
+    var hourSize = 70, gap = 8, date = 'TUE 10', name = 'الظهر', time = PRAYER.time;
     var cell = 0;
     D.hour.split('').concat(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']).forEach(function (d) {
       cell = Math.max(cell, k.width(d, hourSize, 'time'));
@@ -904,10 +904,10 @@
           var p = parts(k); line(k, 222, [p.battery, p.phone, p.weather], 10);
         } },
       { code: 'P7', name: 'Current face',
-        note: 'The face as the watch draws it now. The hour has three short lines at its right: the day, the prayer name in Arabic and the prayer time. The status row has the battery with its days, the phone, an alarm bell and the weather.',
+        note: 'The face as the watch draws it now. The hour is large and has three short lines at its right: the day, the prayer name in Arabic and the prayer time. The status row has the battery with its days, the phone, an alarm bell and the weather.',
         draw: function (k) {
-          m1(k, { rings: 'open', top: 'none' }); k.eventLine(196);
-          topRow(k, cy - 61); statusRow(k, cy + 92);
+          m1(k, { rings: 'open', top: 'none', minuteSize: 94, minuteY: 142 }); k.eventLine(196);
+          topRow(k, cy - 52); statusRow(k, cy + 92);
         } }
     ]
   };

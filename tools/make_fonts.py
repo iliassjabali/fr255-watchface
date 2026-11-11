@@ -33,8 +33,8 @@ CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 # that is added to the width of a glyph. The optional "glyphs" is a list of
 # texts, one for each glyph. The page loads the same typefaces.
 FONTS = {
-    "minutes": {"size": 120, "family": "Roboto", "weight": 900, "face": "Roboto Black", "pad": 2},
-    "hour": {"size": 47, "family": "Roboto", "weight": 900, "face": "Roboto Black", "pad": 2},
+    "minutes": {"size": 94, "family": "Roboto", "weight": 900, "face": "Roboto Black", "pad": 2},
+    "hour": {"size": 70, "family": "Roboto", "weight": 900, "face": "Roboto Black", "pad": 2},
     "prayer": {
         "size": 15, "family": "Noto Kufi Arabic", "weight": 700, "face": "Noto Kufi Arabic Bold", "pad": 2,
         "glyphs": ["الفجر", "الظهر", "العصر", "المغرب", "العشاء"],

@@ -135,12 +135,12 @@ class FaceView extends WatchUi.WatchFace {
                 hour = 12;
             }
         }
-        drawTop(dc, cx, cy - 61, hour.format("%02d"), _prayers.current(clock));
+        drawTop(dc, cx, cy - 52, hour.format("%02d"), _prayers.current(clock));
 
         var minuteFont = _minuteFont;
         if (minuteFont != null) {
             dc.setColor(COLOR_ACCENT, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx, cy + 4, minuteFont, clock.min.format("%02d"),
+            dc.drawText(cx, cy + 12, minuteFont, clock.min.format("%02d"),
                 Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
 
