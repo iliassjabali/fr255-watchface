@@ -3,36 +3,58 @@ import Toybox.ActivityMonitor;
 import Toybox.Complications;
 import Toybox.Graphics;
 import Toybox.Lang;
-import Toybox.Math;
 import Toybox.System;
 import Toybox.Time;
 import Toybox.Time.Gregorian;
+import Toybox.UserProfile;
 import Toybox.WatchUi;
 import Toybox.Weather;
 
+// Layout: the minutes fill the center, and three open rings go around them.
+// - Rings, from the edge to the center: heart rate, Body Battery, stress.
+// - Top: the hour, small, with the date and the next prayer.
+// - Opening at the bottom: the next calendar event, then the battery, the
+//   phone and the weather.
 class FaceView extends WatchUi.WatchFace {
 
     // Palette, from the 64 colors of the Forerunner 255 display.
-    // Blue is the one accent: the minutes, the step ticks, the step icon,
-    // the connected phone and the countdown of a near event.
     private const COLOR_ACCENT = 0x00AAFF;
     private const COLOR_DIM = 0xAAAAAA;
     private const COLOR_TRACK = 0x555555;
     private const COLOR_HEART = 0xFF0055;
-    private const COLOR_ENERGY = 0x55FF00;
+    private const COLOR_STRESS = 0xFFAA00;
     private const COLOR_SUN = 0xFFFF55;
 
+    private const RING_WIDTH = 6;
+    private const DEFAULT_MAX_HEART_RATE = 190;
+
+    private var _minuteFont as FontResource?;
+    private var _hourFont as FontResource?;
     private var _nextEvent as String?;
     private var _bodyBattery as Number?;
+    private var _stress as Number?;
+    private var _prayers as PrayerProvider;
 
     function initialize() {
         WatchFace.initialize();
+        _prayers = new PrayerProvider();
+    }
+
+    // The background service gave new prayer times.
+    function onPrayerData() as Void {
+        _prayers.invalidate();
+    }
+
+    function onLayout(dc as Dc) as Void {
+        _minuteFont = WatchUi.loadResource(Rez.Fonts.Minutes) as FontResource;
+        _hourFont = WatchUi.loadResource(Rez.Fonts.Hour) as FontResource;
     }
 
     function onShow() as Void {
         Complications.registerComplicationChangeCallback(method(:onComplicationChanged));
         subscribe(Complications.COMPLICATION_TYPE_CALENDAR_EVENTS);
         subscribe(Complications.COMPLICATION_TYPE_BODY_BATTERY);
+        subscribe(Complications.COMPLICATION_TYPE_STRESS);
     }
 
     function onHide() as Void {
@@ -62,6 +84,8 @@ class FaceView extends WatchUi.WatchFace {
                 _nextEvent = (value != null) ? value.toString() : null;
             } else if (type == Complications.COMPLICATION_TYPE_BODY_BATTERY) {
                 _bodyBattery = (value instanceof Number) ? value : null;
+            } else if (type == Complications.COMPLICATION_TYPE_STRESS) {
+                _stress = (value instanceof Number) ? value : null;
             }
         } catch (e) {
             // Keep the last known value.
@@ -80,28 +104,26 @@ class FaceView extends WatchUi.WatchFace {
         return null;
     }
 
-    // Layout: an asymmetric instrument dial.
-    // - Edge: 60 ticks that light up with the progress to the step goal.
-    // - Left: the time, stacked, as the one bold element.
-    // - Right: a quiet column with heart rate, energy and steps.
-    // - Top and bottom: status, date, weather and the next calendar event.
+    // The maximum heart rate from the user profile. It is the top of zone 5.
+    private function maxHeartRate() as Number {
+        var zones = UserProfile.getHeartRateZones(UserProfile.HR_ZONE_SPORT_GENERIC);
+        if (zones != null && zones.size() > 5) {
+            return zones[5];
+        }
+        return DEFAULT_MAX_HEART_RATE;
+    }
+
     function onUpdate(dc as Dc) as Void {
         var cx = dc.getWidth() / 2;
         var cy = dc.getHeight() / 2;
-        var vcenter = Graphics.TEXT_JUSTIFY_VCENTER;
 
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();
 
-        var activity = ActivityMonitor.getInfo();
-        drawStepTicks(dc, cx, cy, activity);
-        drawStatusRow(dc, cx, cy - 106);
+        drawRing(dc, cx, cy, cx - 5, Rings.sweep(heartRate(), maxHeartRate()), COLOR_HEART);
+        drawRing(dc, cx, cy, cx - 13, Rings.sweep(_bodyBattery, 100), COLOR_ACCENT);
+        drawRing(dc, cx, cy, cx - 21, Rings.sweep(_stress, 100), COLOR_STRESS);
 
-        var today = Gregorian.info(Time.now(), Time.FORMAT_MEDIUM);
-        var dateText = Lang.format("$1$ $2$ $3$", [today.day_of_week, today.day, today.month]).toUpper();
-        drawDateAndWeather(dc, cx, cy - 82, dateText);
-
-        // Time, stacked and aligned to the right on the divider.
         var clock = System.getClockTime();
         var hour = clock.hour;
         if (!System.getDeviceSettings().is24Hour) {
@@ -110,113 +132,59 @@ class FaceView extends WatchUi.WatchFace {
                 hour = 12;
             }
         }
-        var timeRight = cx - 5;
-        var timeJustify = Graphics.TEXT_JUSTIFY_RIGHT | vcenter;
-        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(timeRight, cy - 33, Graphics.FONT_NUMBER_THAI_HOT, hour.format("%02d"), timeJustify);
-        dc.setColor(COLOR_ACCENT, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(timeRight, cy + 33, Graphics.FONT_NUMBER_THAI_HOT, clock.min.format("%02d"), timeJustify);
+        drawTop(dc, cx, cy - 63, hour.format("%02d"), _prayers.current(clock));
 
-        // Divider
+        var minuteFont = _minuteFont;
+        if (minuteFont != null) {
+            dc.setColor(COLOR_ACCENT, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(cx, cy + 4, minuteFont, clock.min.format("%02d"),
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        }
+
+        drawNextEvent(dc, cx, cy + 66, clock.hour * 60 + clock.min);
+        drawStatusRow(dc, cx, cy + 92);
+    }
+
+    // An open ring: a grey track, and the filled part in the color of the value.
+    private function drawRing(dc as Dc, cx as Number, cy as Number, radius as Number, sweep as Number, color as Number) as Void {
+        dc.setPenWidth(RING_WIDTH);
         dc.setColor(COLOR_TRACK, Graphics.COLOR_TRANSPARENT);
-        dc.drawLine(cx + 5, cy - 56, cx + 5, cy + 57);
-
-        // Heart rate, energy (Body Battery), steps
-        var iconX = cx + 24;
-        var valueX = cx + 42;
-        var valueJustify = Graphics.TEXT_JUSTIFY_LEFT | vcenter;
-        var hr = heartRate();
-        var steps = activity.steps;
-
-        drawHeart(dc, iconX, cy - 38);
-        drawBolt(dc, iconX, cy);
-        drawSteps(dc, iconX, cy + 38);
-
-        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(valueX, cy - 38, Graphics.FONT_TINY, (hr != null) ? hr.toString() : "--", valueJustify);
-        dc.drawText(valueX, cy, Graphics.FONT_TINY, (_bodyBattery != null) ? _bodyBattery.toString() : "--", valueJustify);
-        dc.drawText(valueX, cy + 38, Graphics.FONT_TINY, (steps != null) ? steps.toString() : "--", valueJustify);
-
-        drawNextEvent(dc, cx, cy + 79);
-    }
-
-    // 60 ticks on the screen edge. The lit ticks show the progress to the step goal.
-    private function drawStepTicks(dc as Dc, cx as Number, cy as Number, activity as ActivityMonitor.Info) as Void {
-        var lit = StepTicks.lit(activity.steps, activity.stepGoal);
-
-        var outer = cx - 1;
-        dc.setPenWidth(2);
-        for (var i = 0; i < StepTicks.COUNT; i++) {
-            var angle = (i * Math.PI) / 30;
-            var sin = Math.sin(angle);
-            var cos = Math.cos(angle);
-            var inner = (i % 5 == 0) ? outer - 9 : outer - 5;
-            dc.setColor((i < lit) ? COLOR_ACCENT : COLOR_TRACK, Graphics.COLOR_TRANSPARENT);
-            dc.drawLine(cx + inner * sin, cy - inner * cos, cx + outer * sin, cy - outer * cos);
+        dc.drawArc(cx, cy, radius, Graphics.ARC_CLOCKWISE, Rings.START_ANGLE, Rings.endAngle(Rings.FULL_SWEEP));
+        if (sweep > 0) {
+            dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+            dc.drawArc(cx, cy, radius, Graphics.ARC_CLOCKWISE, Rings.START_ANGLE, Rings.endAngle(sweep));
         }
         dc.setPenWidth(1);
     }
 
-    // Watch battery and phone connection, centered as one group.
-    private function drawStatusRow(dc as Dc, cx as Number, y as Number) as Void {
-        var font = Graphics.FONT_XTINY;
-        var battery = System.getSystemStats().battery;
-        var batteryText = battery.format("%d") + "%";
-        var textWidth = dc.getTextWidthInPixels(batteryText, font);
-        var x = cx - (27 + 5 + textWidth + 12 + 11) / 2;
-
-        // Battery
-        dc.setPenWidth(1);
-        dc.setColor(COLOR_DIM, Graphics.COLOR_TRANSPARENT);
-        dc.drawRectangle(x, y - 6, 24, 13);
-        dc.fillRectangle(x + 24, y - 2, 3, 5);
-        dc.setColor((battery > 20) ? Graphics.COLOR_WHITE : COLOR_HEART, Graphics.COLOR_TRANSPARENT);
-        dc.fillRectangle(x + 2, y - 4, ((20 * battery) / 100).toNumber(), 9);
-        dc.setColor(COLOR_DIM, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(x + 32, y, font, batteryText, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-
-        // Phone
-        var connected = System.getDeviceSettings().phoneConnected;
-        var px = x + 32 + textWidth + 12 + 5;
-        dc.setPenWidth(2);
-        dc.setColor(connected ? COLOR_ACCENT : COLOR_TRACK, Graphics.COLOR_TRANSPARENT);
-        dc.drawRoundedRectangle(px - 5, y - 9, 11, 18, 2);
-        dc.fillRectangle(px - 1, y + 4, 3, 2);
-        if (!connected) {
-            dc.setColor(COLOR_HEART, Graphics.COLOR_TRANSPARENT);
-            dc.drawLine(px - 8, y + 9, px + 8, y - 9);
-        }
-        dc.setPenWidth(1);
-    }
-
-    // The date, then a weather icon and the temperature on the same line.
-    private function drawDateAndWeather(dc as Dc, cx as Number, y as Number, dateText as String) as Void {
+    // The hour, with the date and the next prayer at its right.
+    // The hour and the date are centered as one group. The prayer starts
+    // below the date and can be longer than the date.
+    private function drawTop(dc as Dc, cx as Number, y as Number, hourText as String, prayer as Array<String>?) as Void {
         var font = Graphics.FONT_XTINY;
         var left = Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER;
-        var conditions = Weather.getCurrentConditions();
-        var temperature = (conditions != null) ? conditions.temperature : null;
+        var today = Gregorian.info(Time.now(), Time.FORMAT_MEDIUM);
+        var dateText = Lang.format("$1$ $2$ $3$", [today.day_of_week, today.day, today.month]).toUpper();
 
-        if (conditions == null || temperature == null) {
-            dc.setColor(COLOR_DIM, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx, y, font, dateText, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-            return;
-        }
+        var hourFont = _hourFont;
+        var hourWidth = (hourFont != null) ? dc.getTextWidthInPixels(hourText, hourFont) : 0;
+        var gap = 8;
+        var x = cx - (hourWidth + gap + dc.getTextWidthInPixels(dateText, font)) / 2;
 
-        if (System.getDeviceSettings().temperatureUnits == System.UNIT_STATUTE) {
-            temperature = (temperature * 9) / 5 + 32;
+        if (hourFont != null) {
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(x + hourWidth, y, hourFont, hourText, Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
         }
-        var tempText = temperature.format("%d") + "°";
-        var dateWidth = dc.getTextWidthInPixels(dateText, font);
-        var gap = 12;
-        var iconWidth = 18;
-        var x = cx - (dateWidth + gap + iconWidth + 5 + dc.getTextWidthInPixels(tempText, font)) / 2;
+        x += hourWidth + gap;
 
         dc.setColor(COLOR_DIM, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(x, y, font, dateText, left);
-        x += dateWidth + gap;
-        drawWeatherIcon(dc, x + iconWidth / 2, y, conditions.condition);
-        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(x + iconWidth + 5, y, font, tempText, left);
+        dc.drawText(x, y - 7, font, dateText, left);
+
+        if (prayer != null) {
+            dc.drawText(x, y + 11, font, prayer[0], left);
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(x + dc.getTextWidthInPixels(prayer[0], font) + 5, y + 11, font, prayer[1], left);
+        }
     }
 
     // Sun for clear weather, cloud with drops for rain and snow, cloud for all other conditions.
@@ -255,34 +223,21 @@ class FaceView extends WatchUi.WatchFace {
         }
     }
 
-    private function drawHeart(dc as Dc, x as Number, y as Number) as Void {
-        dc.setColor(COLOR_HEART, Graphics.COLOR_TRANSPARENT);
-        dc.fillCircle(x - 4, y - 3, 5);
-        dc.fillCircle(x + 4, y - 3, 5);
-        dc.fillPolygon([[x - 9, y - 1], [x + 9, y - 1], [x, y + 9]]);
-    }
-
-    private function drawBolt(dc as Dc, x as Number, y as Number) as Void {
-        dc.setColor(COLOR_ENERGY, Graphics.COLOR_TRANSPARENT);
-        dc.fillPolygon([[x + 3, y - 10], [x - 7, y + 1], [x - 1, y + 1], [x - 3, y + 10], [x + 7, y - 2], [x + 1, y - 2]]);
-    }
-
-    private function drawSteps(dc as Dc, x as Number, y as Number) as Void {
-        dc.setColor(COLOR_ACCENT, Graphics.COLOR_TRANSPARENT);
-        dc.fillEllipse(x - 5, y + 2, 3, 6);
-        dc.fillEllipse(x + 5, y - 2, 3, 6);
-    }
-
-    // The next calendar event on two lines: icon and start time, then the countdown.
-    private function drawNextEvent(dc as Dc, cx as Number, y as Number) as Void {
+    // The next calendar event on one line: icon, start time, countdown.
+    private function drawNextEvent(dc as Dc, cx as Number, y as Number, nowMinutes as Number) as Void {
         var font = Graphics.FONT_XTINY;
         var left = Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER;
-        var center = Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER;
         var event = _nextEvent;
         var text = (event != null) ? event : "No event";
+        var minutes = (event != null)
+            ? EventTime.minutesUntil(event, nowMinutes, System.getDeviceSettings().is24Hour)
+            : null;
+        var countdown = (minutes != null) ? "  " + EventTime.countdownText(minutes) : "";
+
         var iconWidth = 16;
         var gap = 7;
-        var x = cx - (iconWidth + gap + dc.getTextWidthInPixels(text, font)) / 2;
+        var textWidth = dc.getTextWidthInPixels(text, font);
+        var x = cx - (iconWidth + gap + textWidth + dc.getTextWidthInPixels(countdown, font)) / 2;
 
         dc.setColor(COLOR_DIM, Graphics.COLOR_TRANSPARENT);
         dc.drawRectangle(x, y - 6, iconWidth, 14);
@@ -292,17 +247,72 @@ class FaceView extends WatchUi.WatchFace {
         dc.fillRectangle(x + 4, y + 1, 3, 3);
         dc.fillRectangle(x + 9, y + 1, 3, 3);
 
+        x += iconWidth + gap;
         dc.setColor((event != null) ? Graphics.COLOR_WHITE : COLOR_DIM, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(x + iconWidth + gap, y, font, text, left);
+        dc.drawText(x, y, font, text, left);
 
-        var clock = System.getClockTime();
-        var minutes = (event != null)
-            ? EventTime.minutesUntil(event, clock.hour * 60 + clock.min, System.getDeviceSettings().is24Hour)
-            : null;
         if (minutes != null) {
             // The accent marks an event that starts in 15 minutes or less.
             dc.setColor((minutes <= 15) ? COLOR_ACCENT : COLOR_DIM, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx, y + 20, font, EventTime.countdownText(minutes), center);
+            dc.drawText(x + textWidth, y, font, countdown, left);
+        }
+    }
+
+    // The watch battery, the phone connection and the weather, centered as one
+    // group in the opening of the rings.
+    private function drawStatusRow(dc as Dc, cx as Number, y as Number) as Void {
+        var font = Graphics.FONT_XTINY;
+        var gap = 10;
+        var batteryWidth = 27;
+        var phoneWidth = 11;
+        var iconWidth = 18;
+
+        var conditions = Weather.getCurrentConditions();
+        var temperature = (conditions != null) ? conditions.temperature : null;
+        var tempText = null;
+        if (conditions != null && temperature != null) {
+            if (System.getDeviceSettings().temperatureUnits == System.UNIT_STATUTE) {
+                temperature = (temperature * 9) / 5 + 32;
+            }
+            tempText = temperature.format("%d") + "°";
+        }
+
+        var total = batteryWidth + gap + phoneWidth;
+        if (tempText != null) {
+            total += gap + iconWidth + 5 + dc.getTextWidthInPixels(tempText, font);
+        }
+        var x = cx - total / 2;
+
+        // Battery
+        var battery = System.getSystemStats().battery;
+        dc.setPenWidth(1);
+        dc.setColor(COLOR_DIM, Graphics.COLOR_TRANSPARENT);
+        dc.drawRectangle(x, y - 6, 24, 13);
+        dc.fillRectangle(x + 24, y - 2, 3, 5);
+        dc.setColor((battery > 20) ? Graphics.COLOR_WHITE : COLOR_HEART, Graphics.COLOR_TRANSPARENT);
+        dc.fillRectangle(x + 2, y - 4, ((20 * battery) / 100).toNumber(), 9);
+        x += batteryWidth + gap;
+
+        // Phone
+        var connected = System.getDeviceSettings().phoneConnected;
+        var px = x + 5;
+        dc.setPenWidth(2);
+        dc.setColor(connected ? COLOR_ACCENT : COLOR_TRACK, Graphics.COLOR_TRANSPARENT);
+        dc.drawRoundedRectangle(px - 5, y - 9, 11, 18, 2);
+        dc.fillRectangle(px - 1, y + 4, 3, 2);
+        if (!connected) {
+            dc.setColor(COLOR_HEART, Graphics.COLOR_TRANSPARENT);
+            dc.drawLine(px - 8, y + 9, px + 8, y - 9);
+        }
+        dc.setPenWidth(1);
+        x += phoneWidth + gap;
+
+        // Weather
+        if (conditions != null && tempText != null) {
+            drawWeatherIcon(dc, x + 9, y, conditions.condition);
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(x + iconWidth + 5, y, font, tempText,
+                Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
         }
     }
 }

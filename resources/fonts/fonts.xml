@@ -1,0 +1,5 @@
+<!-- Digit fonts from tools/make_fonts.py. Roboto Black, Apache License 2.0. -->
+<fonts>
+    <font id="Minutes" filename="minutes.fnt" antialias="true" filter="0123456789"/>
+    <font id="Hour" filename="hour.fnt" antialias="true" filter="0123456789"/>
+</fonts>

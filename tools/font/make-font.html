@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Digit font generator</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@900&display=block">
+</head>
+<body>
+<!--
+  Draws the digits 0 to 9 in Roboto Black on one row of equal cells, for each
+  size in the "sizes" query parameter. tools/make_fonts.py reads the result
+  from the element "out" and writes the .fnt and .png files for Connect IQ.
+-->
+<pre id="out">pending</pre>
+<script>
+(async function () {
+  var sizes = (new URLSearchParams(location.search).get('sizes') || '120').split(',').map(Number);
+  var digits = '0123456789';
+  var result = [];
+  try {
+    await document.fonts.load('900 100px Roboto', digits);
+    var loaded = document.fonts.check('900 100px Roboto');
+    sizes.forEach(function (size) {
+      var canvas = document.createElement('canvas'), ctx = canvas.getContext('2d');
+      ctx.font = '900 ' + size + 'px Roboto';
+      var advance = 0, ascent = 0, descent = 0;
+      digits.split('').forEach(function (d) {
+        var m = ctx.measureText(d);
+        advance = Math.max(advance, m.width, m.actualBoundingBoxLeft + m.actualBoundingBoxRight);
+        ascent = Math.max(ascent, m.actualBoundingBoxAscent);
+        descent = Math.max(descent, m.actualBoundingBoxDescent);
+      });
+      var cell = Math.ceil(advance) + 2, top = Math.ceil(ascent) + 1, height = top + Math.ceil(descent) + 1;
+      canvas.width = cell * digits.length;
+      canvas.height = height;
+      ctx.font = '900 ' + size + 'px Roboto';
+      ctx.fillStyle = '#FFFFFF';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      digits.split('').forEach(function (d, i) { ctx.fillText(d, i * cell + cell / 2, top); });
+      result.push({ size: size, cell: cell, height: height, base: top, loaded: loaded, png: canvas.toDataURL('image/png') });
+    });
+    document.getElementById('out').textContent = JSON.stringify(result);
+  } catch (e) {
+    document.getElementById('out').textContent = JSON.stringify({ error: String(e) });
+  }
+})();
+</script>
+</body>
+</html>
