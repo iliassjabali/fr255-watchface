@@ -1,0 +1,12 @@
+# Rules for yamllint, for .github/workflows/build.yml.
+extends: default
+
+rules:
+  # The workflow has long shell commands and long comments.
+  line-length:
+    max: 140
+  # A GitHub workflow does not start with "---".
+  document-start: disable
+  # The key "on" of a workflow is not a boolean.
+  truthy:
+    check-keys: false
