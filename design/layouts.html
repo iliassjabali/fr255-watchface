@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FR255 Layout Variations</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;900&family=Roboto+Condensed:wght@700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;900&family=Roboto+Condensed:wght@700&family=Noto+Kufi+Arabic:wght@700&display=swap">
 <style>
   :root {
     --bg: #0c0f14; --surface: #141922; --fg: #e8edf5; --muted: #93a0b4; --line: #263042; --accent: #55aaff;
@@ -47,7 +47,7 @@
 <div class="page">
   <header>
     <h1>FR255 Layout Variations</h1>
-    <p class="muted">Layouts for your Forerunner 255 watch face, with the Sky blue accent and the white energy icon that you selected. The first six add the prayer time to the current watch face. The next nine are variations of M1. The next seven are the Minutes layout with three rings. The next ten are variations of Sun and Rings with more data. Give the code of the layout that you want.</p>
+    <p class="muted">Layouts for your Forerunner 255 watch face, with the Sky blue accent and the white energy icon that you selected. The first seven add the prayer time to the current watch face. The next nine are variations of M1. The next seven are the Minutes layout with three rings. The next ten are variations of Sun and Rings with more data. Give the code of the layout that you want.</p>
   </header>
   <div id="focus" class="groups"></div>
   <section class="group">
@@ -119,6 +119,39 @@
     k.battery = function (x, y) {
       k.box(x, y - 6, 24, 13, C.dim); k.rect(x + 24, y - 2, 3, 5, C.dim);
       k.rect(x + 2, y - 4, Math.round((20 * D.battery) / 100), 9, C.fg);
+    };
+    // The small battery of the current face, with the days that remain. x is the left edge, y is the center.
+    // The bar is 15 pixels wide at 100 %, and it is red at 20 % or less, as in StatusRow.mc.
+    k.batteryDays = function (x, y, percent, text) {
+      var low = percent <= 20, color = low ? C.heart : C.fg;
+      k.box(x, y - 5, 19, 11, C.dim); k.rect(x + 19, y - 2, 3, 5, C.dim);
+      if (percent > 0) { k.rect(x + 2, y - 3, Math.floor((15 * percent) / 100), 7, color); }
+      k.text(text, x + 26, y, XT, color);
+    };
+    // The alarm bell, 14 pixels wide. x and y are the center.
+    k.bell = function (x, y) {
+      k.disc(x, y - 2, 5, C.fg);
+      k.poly([[x - 5, y - 2], [x + 5, y - 2], [x + 5, y + 3], [x + 7, y + 5], [x - 7, y + 5], [x - 5, y + 3]], C.fg);
+      k.rect(x - 1, y - 9, 2, 2, C.fg); k.disc(x, y + 7, 2, C.fg);
+    };
+    // The name of a prayer in Arabic, as a glyph of the Prayer font: Noto Kufi Arabic Bold, 15 pixels.
+    // The width is the ink plus 2 pixels, as tools/make_fonts.py makes it. The glyph is in a cell of
+    // 18 pixels, with the baseline 13 pixels from the top. x is the left edge, y is the center of the cell.
+    k.prayerFont = function () { ctx.font = '700 15px "Noto Kufi Arabic", sans-serif'; ctx.direction = 'rtl'; };
+    k.prayerWidth = function (str) {
+      k.prayerFont();
+      var m = ctx.measureText(str);
+      var w = Math.ceil(Math.max(m.width, m.actualBoundingBoxLeft + m.actualBoundingBoxRight,
+        2 * m.actualBoundingBoxLeft, 2 * m.actualBoundingBoxRight)) + 2;
+      ctx.direction = 'ltr';
+      return w;
+    };
+    k.prayerName = function (str, x, y, color) {
+      var w = k.prayerWidth(str);
+      k.prayerFont();
+      ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+      ctx.fillText(str, x + w / 2, y + 4);
+      ctx.direction = 'ltr';
     };
     k.calendar = function (x, y) {
       k.box(x, y - 6, 16, 14, C.dim); k.rect(x, y - 6, 16, 4, C.dim);
@@ -706,7 +739,9 @@
       topY = 58; size = 132; my = 136;
     }
     if (o.topY) { topY = o.topY; }
-    if (o.top === 'center') {
+    if (o.top === 'none') {
+      // The caller draws the top row.
+    } else if (o.top === 'center') {
       k.text(D.hour, cx, topY, 40, o.hourColor || C.fg, 'center', 'time');
     } else {
       var hs = o.hourSize || 36, hw = k.width(D.hour, hs, 'time'), dw = k.width(D.date, XT), x = cx - (hw + 8 + dw) / 2;
@@ -789,6 +824,42 @@
     };
   }
 
+  // The top row of the current face, as drawn by View.mc. The hour is 47 pixels high, and a column
+  // of three short lines is at its right: the day, the prayer name in Arabic, the prayer time.
+  // The hour and the column are centered as one group, with 8 pixels between them.
+  // y is the center of the hour, 61 pixels above the center of the screen.
+  function topRow(k, y) {
+    var hourSize = 47, gap = 8, date = 'TUE 10', name = 'الظهر', time = PRAYER.time;
+    var cell = 0;
+    D.hour.split('').concat(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']).forEach(function (d) {
+      cell = Math.max(cell, k.width(d, hourSize, 'time'));
+    });
+    cell = Math.ceil(cell) + 2;
+    var hourWidth = cell * D.hour.length;
+    var column = Math.max(Math.ceil(k.width(date, XT)), k.prayerWidth(name), Math.ceil(k.width(time, XT)));
+    var x = Math.floor(cx - (hourWidth + gap + column) / 2);
+    D.hour.split('').forEach(function (d, i) { k.text(d, x + i * cell + cell / 2, y, hourSize, C.fg, 'center', 'time'); });
+    x += hourWidth + gap;
+    k.text(date, x, y - 19, XT, C.dim);
+    k.prayerName(name, x, y - 3, C.dim);
+    k.text(time, x, y + 13, XT, C.fg);
+  }
+  // The status row of the current face, as drawn by View.mc: the battery with the days that remain,
+  // the phone, the alarm bell and the weather, centered as one group with 8 pixels between the parts.
+  function statusRow(k, y) {
+    var gap = 8, days = '5d', temp = D.temp;
+    var parts = [
+      { w: 19 + 3 + 4 + k.width(days, XT), draw: function (x) { k.batteryDays(x, y, D.battery, days); } },
+      { w: 11, draw: function (x) { k.phone(x + 5, y); } },
+      { w: 14, draw: function (x) { k.bell(x + 7, y); } },
+      { w: 18 + 5 + k.width(temp, XT), draw: function (x) { k.sun(x + 9, y); k.text(temp, x + 23, y, XT, C.fg); } }
+    ];
+    var total = gap * (parts.length - 1);
+    parts.forEach(function (p) { total += p.w; });
+    var x = Math.floor(cx - total / 2);
+    parts.forEach(function (p) { p.draw(x, y); x += p.w + gap; });
+  }
+
   var PRAYERS = {
     title: 'Prayer time',
     note: 'The current watch face, with the next prayer added. The times on this page are examples. At 10:50 the next prayer is Dhuhr at 13:15.',
@@ -831,6 +902,12 @@
         draw: function (k) {
           build(k, { second: function (k2, x, y) { k2.pairAt(x, y, PRAYER.name, PRAYER.time); } });
           var p = parts(k); line(k, 222, [p.battery, p.phone, p.weather], 10);
+        } },
+      { code: 'P7', name: 'Current face',
+        note: 'The face as the watch draws it now. The hour has three short lines at its right: the day, the prayer name in Arabic and the prayer time. The status row has the battery with its days, the phone, an alarm bell and the weather.',
+        draw: function (k) {
+          m1(k, { rings: 'open', top: 'none' }); k.eventLine(196);
+          topRow(k, cy - 61); statusRow(k, cy + 92);
         } }
     ]
   };
@@ -1079,7 +1156,8 @@
   if (document.fonts && document.fonts.load) {
     Promise.all([
       document.fonts.load('900 80px Roboto', '0123456789'),
-      document.fonts.load('700 16px "Roboto Condensed"', 'TUE 10 NOV')
+      document.fonts.load('700 16px "Roboto Condensed"', 'TUE 10 NOV'),
+      document.fonts.load('700 15px "Noto Kufi Arabic"', 'الظهر')
     ]).then(drawAll, function () {});
   }
 })();

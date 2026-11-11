@@ -4,7 +4,7 @@ A Connect IQ watch face for the Garmin Forerunner 255 (`fr255`), with a small
 Cloudflare Worker that gives it the official prayer times for Morocco.
 
 <p align="center">
-  <img src="docs/watch-face.png" width="300" alt="The watch face: large blue minutes, three open rings, the hour, the date, the next prayer, the next calendar event, the battery, the phone and the weather">
+  <img src="docs/watch-face.png" width="300" alt="The watch face: large blue minutes, three open rings, the hour, the day, the next prayer in Arabic, the next calendar event, the battery days, the phone, the alarm bell and the weather">
 </p>
 
 The image is a drawing from `design/layouts.html`, with example values. The
@@ -16,9 +16,10 @@ the image again.
 - **Center:** the minutes, large, in blue.
 - **Rings**, from the edge to the center: heart rate (red), Body Battery
   (blue), stress (orange). The rings are open at the bottom.
-- **Top:** the hour, the date, and the next prayer.
+- **Top:** the hour, the day, and the next prayer with its Arabic name.
 - **In the opening of the rings:** the next calendar event with a countdown,
-  then the watch battery, the phone connection and the weather.
+  then the days of watch battery that remain, the phone connection, a bell
+  when an alarm is set, and the weather.
 
 ## Repository
 
